@@ -5,7 +5,7 @@ compatibility_date = "2026-09-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "pho-nha-anna"
-database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
+database_id = "dce30da6-c609-4178-aa13-f7def6b5d255"
 
 [assets]
 directory = "./public"
