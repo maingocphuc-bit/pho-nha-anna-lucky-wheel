@@ -1,8 +1,0 @@
-{
-  "name":"pho-nha-anna-lucky-wheel",
-  "private":true,
-  "type":"module",
-  "scripts":{"dev":"wrangler dev","deploy":"wrangler deploy"},
-  "devDependencies":{"wrangler":"latest"},
-  "dependencies":{"qrcode":"^1.5.4"}
-}
