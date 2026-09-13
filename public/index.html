@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PHỞ NHÀ ANNA – Vòng Quay May Mắn</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;color:#20130d;font-family:Arial,sans-serif;background:
+ radial-gradient(ellipse at 8% 18%,#52752a55 0 7%,transparent 22%),
+ radial-gradient(ellipse at 94% 30%,#52752a55 0 8%,transparent 24%),
+ radial-gradient(ellipse at 12% 82%,#6b8b3550 0 7%,transparent 22%),
+ linear-gradient(135deg,#241008 0%,#5a2a16 42%,#2a1209 100%);}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.3;background:radial-gradient(circle at 20% 10%,#d6b36a22 0 2px,transparent 3px),radial-gradient(circle at 80% 30%,#d6b36a22 0 2px,transparent 3px);background-size:90px 90px;z-index:-1}
+body{min-height:100vh}
+main{width:100%;max-width:760px;margin:0 auto;padding:12px 12px 36px}
+h1{margin:4px 0 8px;text-align:center;color:#ffe6a0;font:900 clamp(30px,8vw,54px) Georgia,serif;text-shadow:0 4px 0 #704019,0 7px 14px #0009;letter-spacing:1px}
+.subtitle{text-align:center;color:#fff;font:900 clamp(24px,6vw,38px) Georgia,serif;background:linear-gradient(#ef3b2d,#a80f0b);border:4px solid #f2bd35;border-radius:18px;padding:12px 10px;box-shadow:0 6px 0 #67200e,0 10px 20px #0007;text-shadow:0 3px 2px #6d0905;margin:0 auto 18px}
+.intro{color:#fff;text-align:center;line-height:1.5;font-size:clamp(16px,3.5vw,22px);margin:18px 5px 24px;text-shadow:0 2px 3px #0009}
+.intro b{color:#ffd43b}
+.card{width:100%;background:linear-gradient(145deg,#fffaf0f5,#fff0d9f5);border:3px solid #f4d58a;border-radius:32px;padding:22px 20px;margin:18px 0;box-shadow:0 15px 35px #0008,inset 0 1px 0 #fff;backdrop-filter:blur(3px)}
+label{display:block;font-weight:800;margin:10px 0 6px}
+input{width:100%;height:52px;border:2px solid #ddd;border-radius:14px;background:#fff;padding:0 14px;font-size:17px}
+button{width:100%;height:54px;border:0;border-radius:14px;background:#cf2929;color:#fff;font-size:19px;font-weight:900;cursor:pointer}
+button:disabled{opacity:.55}
+#continue{margin-top:18px}
+.msg{min-height:20px;text-align:center;color:#a32020;font-weight:700;margin-top:8px}
+.hidden{display:none!important}
+.wheel-title{text-align:center;color:#963328;font-size:clamp(24px,5vw,34px);margin:0 0 12px;text-shadow:0 2px 0 #fff}
+.wheelbox{position:relative;width:min(86vw,520px);height:min(86vw,520px);margin:22px auto 30px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 22px 16px #0009);perspective:900px}
+#wheel{display:block;width:100%;height:100%;max-width:520px;max-height:520px;transform-origin:50% 50%;border-radius:50%;box-shadow:inset 0 0 0 8px #ffe78a,inset 0 0 0 17px #9a5b18,0 0 0 8px #f5c64d,0 0 0 14px #8d4b16,0 18px 0 #5a2b12,0 25px 28px #0007;background:#f8d66d}
+.pointer{position:absolute;z-index:5;left:50%;top:-9px;transform:translateX(-50%);width:0;height:0;border-left:34px solid transparent;border-right:34px solid transparent;border-top:72px solid #d52225;filter:drop-shadow(0 7px 5px #0009)}
+.pointer:after{content:"";position:absolute;left:-20px;top:-64px;width:40px;height:18px;background:linear-gradient(#ff8c70,#f33b35);border-radius:50%;box-shadow:0 3px 0 #9b1618}
+.wheel-labels{position:absolute;inset:0;pointer-events:none;z-index:3}
+.wheel-label{position:absolute;width:31%;text-align:center;color:#fff;font-weight:900;font-size:clamp(11px,2.9vw,20px);line-height:1.15;text-shadow:0 2px 3px #000b;transform:translate(-50%,-50%);white-space:normal}
+.wheel-label .emoji{font-size:1.05em}
+.hub{position:absolute;z-index:4;width:92px;height:92px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 25%,#fff9c9,#e0a51c 72%);border:7px solid #fff;box-shadow:0 5px 12px #0009,0 0 0 5px #b8791b;font-size:47px;line-height:1}
+#turn{text-align:center;font-weight:900;font-size:18px}
+.prizes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.prize{background:#fff;border-radius:12px;padding:11px;font-weight:800;font-size:15px}
+.prize:first-child{grid-column:1/-1}
+.rules{line-height:1.55;font-size:15px}
+.rules h3{color:#a42b24}
+.result{text-align:center}
+.result h2{font:900 30px Georgia,serif;color:#a92822}
+.result.jackpot{border:4px solid #e1ae22;background:#fff0a9}
+.qr{display:block;width:min(72vw,260px);margin:14px auto;background:#fff;padding:8px;border-radius:12px}
+.code{display:inline-block;padding:10px 14px;border:2px dashed #d8a31d;border-radius:10px;background:#fff;font:900 19px monospace}
+.note{font-size:14px;line-height:1.5}.address{text-align:center;background:linear-gradient(90deg,#08733e,#0c9b58);color:#fff;border:3px solid #e7c34d;font-size:clamp(15px,3.5vw,23px);text-shadow:0 2px 2px #0008;padding:15px 10px;box-shadow:0 8px 0 #064c2b,0 12px 20px #0006}
+@media(max-width:430px){
+ .card{padding:18px 14px}
+ .wheelbox{width:min(91vw,430px);height:min(91vw,430px)}
+ .prizes{grid-template-columns:1fr}
+ .prize:first-child{grid-column:auto}
+}
+</style>
+</head>
+<body>
+<main>
+<h1>PHỞ NHÀ ANNA</h1>
+<div class="subtitle">Vòng Quay May Mắn 🎡</div>
+<p class="intro">Hãy là người may mắn nhất để được <b>ĂN PHỞ MIỄN PHÍ</b> từ Phở Nhà Anna và còn nhiều phần thưởng khác nữa.</p>
+
+<section id="register" class="card">
+<h2>Nhập thông tin để tham gia</h2>
+<label>Họ và tên</label>
+<input id="name" autocomplete="name" placeholder="Họ và tên của bạn">
+<label>Số điện thoại</label>
+<input id="phone" inputmode="tel" autocomplete="tel" placeholder="Số điện thoại của bạn">
+<button id="continue">Tiếp Tục ➜</button>
+<div id="msg" class="msg"></div>
+</section>
+
+<section id="game" class="card hidden">
+<h2 class="wheel-title">🎁 Vận may đang chờ bạn!</h2>
+<div class="wheelbox">
+<canvas id="wheel" width="700" height="700"></canvas>
+<div id="wheelLabels" class="wheel-labels" aria-hidden="true"></div>
+<div class="pointer"></div>
+<div class="hub" aria-label="Tô phở">🍜</div>
+</div>
+<button id="spin">BẮT ĐẦU QUAY 🎡</button>
+<p id="turn">Bạn còn 0 lượt quay hôm nay</p>
+<div class="prizes">
+<div class="prize">🍜 1 Tô Phở Ăn Miễn Phí</div>
+<div class="prize">🏷️ Giảm giá 5K</div>
+<div class="prize">🥛 1 Ly Sữa Tươi Mát Lạnh</div>
+<div class="prize">🍵 1 Ly Trà Gừng Mát Lạnh</div>
+<div class="prize">🍀 Chúc Bạn May Mắn Lần Sau</div>
+</div>
+</section>
+
+<section id="result" class="card result hidden">
+<h2 id="resultTitle">🎉 Chúc mừng!</h2>
+<p id="won"></p>
+<img id="qr" class="qr" alt="QR nhận thưởng">
+<div id="code" class="code"></div>
+<p class="note"><b>Hãy lưu mã QR này</b> và đưa cho quán để xác nhận phần thưởng.</p>
+<button id="back">Quay lại vòng quay</button>
+</section>
+
+<section class="card rules">
+<h3>📜 Luật chơi</h3>
+<p>① Mỗi khách hàng được tham gia 1 lần/ngày.</p>
+<p>② Muốn thêm lượt thứ 2: tham gia/quan tâm kênh Zalo của quán hoặc đăng game lên Facebook công khai.</p>
+<p>③ Muốn thêm lượt thứ 3: mời ít nhất 3 người bạn và cả 3 người phải tham gia thật hoặc đăng game lên Facebook công khai.</p>
+<p>④ Tối đa 3 lượt quay/ngày.</p>
+<p>⑤ Nếu trúng thưởng, khách phải lưu mã QR và đưa cho quán.</p>
+</section>
+</main>
+
+<script>
+const prizes=['1 Tô Phở Ăn Miễn Phí','Giảm giá 5K','1 Ly Sữa Tươi Mát Lạnh','1 Ly Trà Gừng Mát Lạnh','Chúc Bạn May Mắn Lần Sau'];
+const colors=['#cf2b2b','#f2b91b','#2a86df','#24943e','#8245a9'];
+const labels=[['🍜 1 Tô Phở','Ăn Miễn Phí'],['🏷️ Giảm giá','5K'],['🥛 1 Ly Sữa Tươi','Mát Lạnh'],['🍵 1 Ly Trà Gừng','Mát Lạnh'],['🍀 Chúc Bạn','May Mắn Lần Sau']];
+const wheel=document.getElementById('wheel'),ctx=wheel.getContext('2d');
+let phone='',remaining=0,busy=false,angle=0;
+
+function drawWheel(){
+ const cx=350,cy=350,r=305,s=2*Math.PI/5;
+ ctx.clearRect(0,0,700,700);
+ for(let i=0;i<5;i++){
+  const a=-Math.PI/2+i*s,b=a+s;
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,b);ctx.closePath();
+  ctx.fillStyle=colors[i];ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=6;ctx.stroke();
+ }
+ ctx.beginPath();ctx.arc(cx,cy,r+7,0,Math.PI*2);ctx.strokeStyle='#ffd45b';ctx.lineWidth=15;ctx.stroke();
+}
+const wheelLabels=document.getElementById('wheelLabels');
+labels.forEach((parts,i)=>{
+ const el=document.createElement('div');
+ el.className='wheel-label';
+ el.innerHTML=parts.map(x=>'<div>'+x+'</div>').join('');
+ wheelLabels.appendChild(el);
+});
+function renderLabels(rad){
+ const slice=2*Math.PI/5;
+ [...wheelLabels.children].forEach((el,i)=>{
+  const a=-Math.PI/2+(i+.5)*slice+rad;
+  const x=50+35*Math.cos(a), y=50+35*Math.sin(a);
+  el.style.left=x+'%'; el.style.top=y+'%';
+ });
+}
+renderLabels(0);
+
+drawWheel();
+
+async function post(path,data){
+ const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+ let b={};try{b=await r.json()}catch(e){}
+ if(!r.ok||b.ok===false)throw new Error(b.error||('Máy chủ trả về lỗi '+r.status));
+ return b;
+}
+
+function updateTurn(){
+ document.getElementById('turn').textContent='Bạn còn '+remaining+' lượt quay hôm nay';
+ document.getElementById('spin').disabled=busy||remaining<=0;
+}
+
+document.getElementById('continue').onclick=async()=>{
+ const name=document.getElementById('name').value.trim();
+ phone=document.getElementById('phone').value.replace(/\D/g,'');
+ const msg=document.getElementById('msg');
+ msg.textContent='';
+ if(name.length<2||phone.length<9){msg.textContent='Vui lòng nhập họ tên và số điện thoại hợp lệ.';return}
+ const b=document.getElementById('continue');b.disabled=true;
+ try{
+  const r=await post('/api/register',{name,phone});
+  remaining=Number(r.remaining||0);
+  document.getElementById('register').classList.add('hidden');
+  document.getElementById('game').classList.remove('hidden');
+  updateTurn();
+  document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});
+ }catch(e){msg.textContent=e.message}
+ b.disabled=false;
+};
+
+document.getElementById('spin').onclick=async()=>{
+ if(busy||remaining<=0)return;
+ busy=true;const btn=document.getElementById('spin');btn.disabled=true;btn.textContent='ĐANG QUAY...';
+ try{
+  const r=await post('/api/spin',{phone});
+  const idx=Number(r.prizeIndex);
+  if(!Number.isInteger(idx)||idx<0||idx>4)throw new Error('Dữ liệu phần thưởng không hợp lệ.');
+  remaining=Math.max(0,Number(r.remaining||0));
+  const slice=2*Math.PI/5;
+  // Each slice's CENTER is at -90° + 36° + idx*72°.
+  // Rotate that center to the fixed pointer at -90°.
+  const target=-(idx*slice+slice/2);
+  let delta=target-angle;
+  while(delta<12*Math.PI)delta+=2*Math.PI;
+  const start=angle,t0=performance.now(),duration=5200;
+  function animate(t){
+   const q=Math.min(1,(t-t0)/duration),e=1-Math.pow(1-q,4);
+   angle=start+delta*e;
+   wheel.style.transform='rotate('+angle+'rad)';
+   renderLabels(angle);
+   if(q<1)requestAnimationFrame(animate);
+   else{
+    busy=false;btn.textContent='BẮT ĐẦU QUAY 🎡';updateTurn();
+    showResult(r);
+   }
+  }
+  requestAnimationFrame(animate);
+ }catch(e){
+  busy=false;btn.textContent='BẮT ĐẦU QUAY 🎡';updateTurn();alert(e.message);
+ }
+};
+
+function showResult(r){
+ const box=document.getElementById('result');
+ box.classList.remove('hidden');
+ box.classList.toggle('jackpot',!!r.special);
+ document.getElementById('resultTitle').textContent=r.special?'🎉 JACKPOT – GIẢI ĐẶC BIỆT! 🎉':'🎉 Chúc mừng!';
+ document.getElementById('won').textContent='Bạn đã quay trúng: '+r.prize;
+ document.getElementById('code').textContent=r.rewardCode;
+ document.getElementById('qr').src=r.qr;
+ box.scrollIntoView({behavior:'smooth',block:'center'});
+}
+document.getElementById('back').onclick=()=>{
+ document.getElementById('result').classList.add('hidden');
+ document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});
+ updateTurn();
+};
+</script>
+</body>
+</html>
