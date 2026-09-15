@@ -7,3 +7,6 @@ PHỞ NHÀ ANNA - RELEASE V5
 - Giữ nguyên cấu trúc Cloudflare Worker + D1 và các bảng đã migrate.
 
 Lưu ý: Gói này dùng các cột/bảng D1 mà anh đã tạo trước đó; không chạy lại migration cũ trên database hiện tại.
+
+
+Cập nhật mới: Giải 1 Tô Phở Miễn Phí 50K có thời hạn sử dụng trong 2 ngày kể từ ngày nhận thưởng.

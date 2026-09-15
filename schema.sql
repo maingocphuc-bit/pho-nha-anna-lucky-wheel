@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS plays (
   prize_name TEXT NOT NULL,
   reward_code TEXT NOT NULL UNIQUE,
   redeemed INTEGER NOT NULL DEFAULT 0,
+  redemption_count INTEGER NOT NULL DEFAULT 0,
   redeemed_at TEXT,
   expires_at TEXT,
   cycle_no INTEGER NOT NULL DEFAULT 1,
