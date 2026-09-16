@@ -31,16 +31,9 @@ async function sha256(text) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
 }
-const PBKDF2_ITERATIONS = 120000;
-function randomHex(bytes = 16) {
-  const a = new Uint8Array(bytes); crypto.getRandomValues(a);
-  return [...a].map(x => x.toString(16).padStart(2, '0')).join('');
-}
 async function hashPassword(password, saltHex) {
-  const salt = Uint8Array.from(saltHex.match(/.{1,2}/g).map(h => parseInt(h, 16)));
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, key, 256);
-  return [...new Uint8Array(bits)].map(x => x.toString(16).padStart(2, '0')).join('');
+  // D1-only admin: salted SHA-256, lightweight enough for Cloudflare Workers.
+  return await sha256(saltHex + ':' + String(password));
 }
 async function getAdminAccount(env) {
   return await env.DB.prepare('SELECT id,password_hash,salt,token_hash FROM admin_credentials WHERE id=1').first();
