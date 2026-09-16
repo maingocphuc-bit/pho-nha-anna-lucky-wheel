@@ -42,22 +42,29 @@ async function hashPassword(password, saltHex) {
   const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, key, 256);
   return [...new Uint8Array(bits)].map(x => x.toString(16).padStart(2, '0')).join('');
 }
-async function ensureAdminAccount(env) {
-  const row = await env.DB.prepare('SELECT id,password_hash,salt,token_hash FROM admin_credentials WHERE id=1').first();
-  if (row) return row;
-  const bootstrap = String(env.ADMIN_PASSWORD || '').trim();
-  if (!bootstrap) return null;
-  const salt = randomHex(16);
-  const passwordHash = await hashPassword(bootstrap, salt);
-  const tokenHash = await sha256(bootstrap);
-  await env.DB.prepare("INSERT OR IGNORE INTO admin_credentials(id,password_hash,salt,token_hash,updated_at) VALUES(1,?,?,?,datetime('now'))")
-    .bind(passwordHash, salt, tokenHash).run();
+async function getAdminAccount(env) {
   return await env.DB.prepare('SELECT id,password_hash,salt,token_hash FROM admin_credentials WHERE id=1').first();
 }
+
+async function createAdminAccount(env, password) {
+  const p = String(password || '').trim();
+  if (p.length < 8 || p.length > 128) return { ok:false, error:'Mật khẩu phải từ 8 đến 128 ký tự.' };
+  const existing = await getAdminAccount(env);
+  if (existing) return { ok:false, error:'Tài khoản quản trị đã được khởi tạo.' };
+  const salt = randomHex(16);
+  const passwordHash = await hashPassword(p, salt);
+  const tokenHash = await sha256(p);
+  const r = await env.DB.prepare(
+    "INSERT OR IGNORE INTO admin_credentials(id,password_hash,salt,token_hash,updated_at) VALUES(1,?,?,?,datetime('now'))"
+  ).bind(passwordHash, salt, tokenHash).run();
+  if (r.meta.changes !== 1) return { ok:false, error:'Không thể khởi tạo tài khoản quản trị.' };
+  return { ok:true, token:tokenHash };
+}
+
 async function adminOk(req, env) {
   const supplied = req.headers.get('X-Admin-Token') || '';
   if (!supplied) return false;
-  const account = await ensureAdminAccount(env);
+  const account = await getAdminAccount(env);
   return !!(account && supplied === account.token_hash);
 }
 async function ensureCycle600(env) {
@@ -79,20 +86,17 @@ function specialExpires(prizeIndex, date) {
   if (prizeIndex === 1) return new Date(Date.now() + 2 * 86400000).toISOString();
   return new Date(`${date}T23:59:59+07:00`).toISOString();
 }
-function chooseRegular(counts, regularSpinsRemainingIncludingThis) {
+function chooseRegular(counts) {
   const available = Object.entries(REGULAR_QUOTAS)
     .map(([idx, quota]) => ({ i: Number(idx), left: quota - Number(counts[idx] || 0) }))
     .filter(x => x.left > 0);
   const totalLeft = available.reduce((s, x) => s + x.left, 0);
   if (!totalLeft) return 5;
-  // Ép quota nếu số lượt thường còn lại đúng bằng số giải thường còn thiếu.
-  if (regularSpinsRemainingIncludingThis <= totalLeft) {
-    const x = available[Math.floor(Math.random() * available.length)];
-    return x.i;
-  }
-  // Trọng số theo quota còn lại, giúp phân bổ tự nhiên nhưng vẫn đủ quota.
   let r = Math.random() * totalLeft;
-  for (const x of available) { if (r < x.left) return x.i; r -= x.left; }
+  for (const x of available) {
+    if (r < x.left) return x.i;
+    r -= x.left;
+  }
   return available[available.length - 1].i;
 }
 async function reserveCyclePosition(env) {
@@ -143,19 +147,37 @@ async function api(req, env, url) {
     if (!reserved) return json({ok:false,error:'Không thể cấp lượt trong bộ đếm 600.'},500);
     const cycleNo = Number(reserved.cycle_no), cyclePosition = Number(reserved.position);
 
+    const rows = await env.DB.prepare('SELECT id,customer_id,prize_index,redeemed FROM plays WHERE cycle600_no=? ORDER BY cycle600_position ASC').bind(cycleNo).all();
+    const cycleRows = rows.results || [];
+    const counts = [0,0,0,0,0,0];
+    for (const r of cycleRows) { const idx=Number(r.prize_index); if(idx>=0&&idx<6) counts[idx]++; }
+
+    const eligibleFor = async (specialIndex) => {
+      return !(specialIndex===0 ? history.has1 : history.has0);
+    };
+
     let i;
-    if (cyclePosition === 310) i = 1;
-    else if (cyclePosition === 600) i = 0;
-    else {
-      const rows = await env.DB.prepare('SELECT prize_index FROM plays WHERE cycle600_no=?').bind(cycleNo).all();
-      const counts = [0,0,0,0,0,0];
-      for (const r of (rows.results || [])) { const idx=Number(r.prize_index); if(idx>=0&&idx<6) counts[idx]++; }
-      const regularPlayed = cyclePosition - 1 - (cyclePosition > 310 ? 1 : 0);
-      const regularRemainingIncludingThis = 598 - regularPlayed;
-      i = chooseRegular(counts, regularRemainingIncludingThis);
+    // 310 và 600 là vị trí ưu tiên. Nếu người trúng không đủ điều kiện, hệ thống
+    // chuyển giải đặc biệt sang lượt gần nhất đủ điều kiện để vẫn giữ 1 giải/cycle.
+    if (cyclePosition === 310 || cyclePosition === 600) {
+      const specialIndex = cyclePosition === 310 ? 1 : 0;
+      if (await eligibleFor(specialIndex)) {
+        i = specialIndex;
+      } else {
+        i = 5;
+      }
+    } else {
+      // Nếu giải 50K ở vị trí 310 bị chặn, ưu tiên trao ở lượt thường gần nhất.
+      const special1Awarded = cycleRows.some(r => Number(r.prize_index)===1);
+      const special0Awarded = cycleRows.some(r => Number(r.prize_index)===0);
+      if (!special1Awarded && cyclePosition > 310 && await eligibleFor(1)) i = 1;
+      else if (!special0Awarded && cyclePosition === 600 && await eligibleFor(0)) i = 0;
+      else {
+        i = chooseRegular(counts);
+      }
     }
 
-    // Một khách không được sở hữu cả hai giải đặc biệt.
+    // Không cho một khách sở hữu cả hai giải đặc biệt.
     if ((i===0 && history.has1) || (i===1 && history.has0)) i = 5;
 
     const rewardCode = tokenCode('ANNA'); const p = PRIZES[i]; const expiresAt = specialExpires(i,d);
@@ -187,11 +209,17 @@ async function api(req, env, url) {
     return json({ok:true,unlockType:Number(t.unlock_type),message:'Mở khóa thành công.'});
   }
 
+  if (url.pathname === '/api/admin/setup' && req.method === 'POST') {
+    const b = await req.json();
+    const result = await createAdminAccount(env, b.password);
+    return json(result, result.ok ? 200 : 400);
+  }
+
   if (url.pathname === '/api/admin/login' && req.method === 'POST') {
     const b=await req.json(); const inputPassword=String(b.password??'').trim();
     if(inputPassword.length<6)return json({ok:false,error:'Mật khẩu phải có ít nhất 6 ký tự.'},400);
-    const account=await ensureAdminAccount(env);
-    if(!account)return json({ok:false,error:'Chưa cấu hình ADMIN_PASSWORD trên Cloudflare để khởi tạo tài khoản quản trị.'},503);
+    const account=await getAdminAccount(env);
+    if(!account)return json({ok:false,error:'Chưa khởi tạo tài khoản quản trị. Hãy tạo mật khẩu lần đầu.'},503);
     const passwordHash=await hashPassword(inputPassword,account.salt);
     if(passwordHash!==account.password_hash)return json({ok:false,error:'Sai mật khẩu.'},401);
     return json({ok:true,token:account.token_hash});
