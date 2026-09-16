@@ -4,10 +4,10 @@ import QRCode from 'qrcode-svg';
 const PRIZES = [
   { name: 'Ăn miễn phí 2 tô phở / 1 tuần', odds: 0, special: true, cap: 1 },
   { name: '1 Tô Phở Miễn Phí 50K', odds: 0, special: true, cap: 1 },
-  { name: 'Giảm giá 5K', odds: 15, special: false, cap: 4 },
-  { name: '1 Chai Sữa Tươi Mát Lạnh', odds: 10, special: false, cap: 3 },
-  { name: '1 Ly Trà Gừng Mát Lạnh', odds: 23, special: false, cap: 10 },
-  { name: 'Chúc Bạn May Mắn Lần Sau', odds: 50, special: false }
+  { name: 'Giảm giá 5K', odds: 6, special: false, cap: 6 },
+  { name: '1 Chai Sữa Tươi Mát Lạnh', odds: 4, special: false, cap: 4 },
+  { name: '1 Ly Trà Gừng Mát Lạnh', odds: 25, special: false, cap: 25 },
+  { name: 'Chúc Bạn May Mắn Lần Sau', odds: 65, special: false }
 ];
 
 const CORS = {
@@ -30,16 +30,29 @@ function today() {
 function tokenCode(prefix = 'ANNA') {
   return prefix + '-' + crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase();
 }
-function weightedPick(counts) {
-  const available = PRIZES.map((p, i) => ({ p, i }))
-    .filter(({ p, i }) => p.cap == null || counts[i] < p.cap);
-  const total = available.reduce((sum, x) => sum + x.p.odds, 0);
-  let r = Math.random() * total;
-  for (const { p, i } of available) {
-    if (r < p.odds) return i;
-    r -= p.odds;
+function weightedPick(counts, remainingRegularSpins) {
+  // Trong mỗi chu kỳ 600 lượt, các giải thường có đúng quota:
+  // Giảm 5K = 6, Sữa = 4, Trà gừng = 25. Các lượt còn lại là may mắn.
+  const targets = [0, 0, 6, 4, 25, 0];
+  const remaining = [];
+  for (const i of [2, 3, 4]) {
+    const left = targets[i] - Number(counts[i] || 0);
+    if (left > 0) remaining.push({ i, left, weight: PRIZES[i].odds });
   }
-  return available[available.length - 1].i;
+  const totalQuota = remaining.reduce((sum, x) => sum + x.left, 0);
+  if (totalQuota <= 0) return 5;
+  // Những lượt cuối của chu kỳ sẽ tự động ép đủ quota còn thiếu.
+  if (remainingRegularSpins <= totalQuota) {
+    const pick = remaining[Math.floor(Math.random() * remaining.length)];
+    return pick.i;
+  }
+  const totalWeight = remaining.reduce((sum, x) => sum + x.weight, 0);
+  let r = Math.random() * totalWeight;
+  for (const x of remaining) {
+    if (r < x.weight) return x.i;
+    r -= x.weight;
+  }
+  return remaining[remaining.length - 1].i;
 }
 function makeQrDataUrl(text) {
   const svg = new QRCode({
@@ -52,15 +65,42 @@ async function sha256(text) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
 }
-const ADMIN_LOGIN_CODE = 'PhoAnna@2026';
+
+const PBKDF2_ITERATIONS = 120000;
+function randomHex(bytes = 16) {
+  const a = new Uint8Array(bytes);
+  crypto.getRandomValues(a);
+  return [...a].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+async function hashPassword(password, saltHex) {
+  const salt = Uint8Array.from(saltHex.match(/.{1,2}/g).map(h => parseInt(h, 16)));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, key, 256);
+  return [...new Uint8Array(bits)].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+async function ensureAdminAccount(env) {
+  let row = await env.DB.prepare('SELECT id,password_hash,salt,token_hash FROM admin_credentials WHERE id=1').first();
+  if (row) return row;
+  const bootstrap = String(env.ADMIN_PASSWORD || '').trim();
+  if (!bootstrap) return null;
+  const salt = randomHex(16);
+  const passwordHash = await hashPassword(bootstrap, salt);
+  const tokenHash = await sha256(bootstrap);
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO admin_credentials(id,password_hash,salt,token_hash,updated_at) VALUES(1,?,?,?,datetime('now'))"
+  ).bind(passwordHash, salt, tokenHash).run();
+  return await env.DB.prepare('SELECT id,password_hash,salt,token_hash FROM admin_credentials WHERE id=1').first();
+}
+async function adminOk(req, env) {
+  const supplied = req.headers.get('X-Admin-Token') || '';
+  if (!supplied) return false;
+  const account = await ensureAdminAccount(env);
+  return !!(account && supplied === account.token_hash);
+}
 
 // Giải đặc biệt được đổi tối đa 2 lần; các giải khác tối đa 1 lần.
 function maxRedemptions(prizeIndex) { return Number(prizeIndex) === 0 ? 2 : 1; }
 
-async function adminOk(req) {
-  const supplied = req.headers.get('X-Admin-Token') || '';
-  return !!(supplied && supplied === await sha256(ADMIN_LOGIN_CODE));
-}
 async function customerUnlocks(env, customerId, date) {
   const rows = await env.DB.prepare(
     'SELECT unlock_type FROM customer_unlocks WHERE customer_id=? AND unlock_date=?'
@@ -120,57 +160,39 @@ async function api(req, env, url) {
       return json({ ok: false, error: 'Dữ liệu giải đặc biệt của khách đang bị trùng nhóm. Vui lòng kiểm tra quản lý.' }, 409);
     }
 
-    // Hai bộ đếm được cập nhật trong CÙNG một D1 batch.
-    // Mỗi UPDATE có RETURNING để lấy vị trí đã được giữ riêng cho request này.
-    // D1 serializes writes to the same row, vì vậy hai khách đồng thời không nhận
-    // cùng một vị trí trong cùng một bộ đếm.
-    const reservations = await env.DB.batch([
-      env.DB.prepare(`
-        UPDATE cycle_state
-        SET position = CASE WHEN position >= 300 THEN 1 ELSE position + 1 END,
-            cycle_no = CASE WHEN position >= 300 THEN cycle_no + 1 ELSE cycle_no END,
-            updated_at = datetime('now')
-        WHERE id = 1
-        RETURNING position, cycle_no
-      `),
-      env.DB.prepare(`
-        UPDATE cycle_state_200
-        SET position = CASE WHEN position >= 200 THEN 1 ELSE position + 1 END,
-            cycle_no = CASE WHEN position >= 200 THEN cycle_no + 1 ELSE cycle_no END,
-            updated_at = datetime('now')
-        WHERE id = 1
-        RETURNING position, cycle_no
-      `)
-    ]);
-    const reservation300 = reservations?.[0]?.results?.[0];
-    const reservation200 = reservations?.[1]?.results?.[0];
-    if (!reservation300 || !reservation200)
-      return json({ ok: false, error: 'Chưa khởi tạo đầy đủ bộ đếm chương trình.' }, 500);
+    // Bộ đếm chính của chương trình: 600 lượt/chu kỳ.
+    // Lượt 310: 1 Tô Phở Miễn Phí 50K.
+    // Lượt 600: Ăn miễn phí 2 tô phở / 1 tuần.
+    const reservation = await env.DB.prepare(`
+      UPDATE cycle_state_600
+      SET position = CASE WHEN position >= 600 THEN 1 ELSE position + 1 END,
+          cycle_no = CASE WHEN position >= 600 THEN cycle_no + 1 ELSE cycle_no END,
+          updated_at = datetime('now')
+      WHERE id = 1
+      RETURNING position, cycle_no
+    `).run();
+    const reserved = reservation?.results?.[0];
+    if (!reserved) return json({ ok: false, error: 'Chưa khởi tạo bộ đếm 600 lượt của chương trình.' }, 500);
 
-    const cyclePosition300 = Number(reservation300.position);
-    const cyclePosition200 = Number(reservation200.position);
-
+    const cyclePosition = Number(reserved.position);
+    const cycleNo = Number(reserved.cycle_no);
     const cycleRows = await env.DB.prepare(
-      'SELECT prize_index FROM plays WHERE cycle_no=?'
-    ).bind(Number(reservation300.cycle_no)).all();
+      'SELECT prize_index FROM plays WHERE cycle600_no=?'
+    ).bind(cycleNo).all();
     const counts = [0, 0, 0, 0, 0, 0];
     for (const item of (cycleRows.results || [])) {
       const idx = Number(item.prize_index);
       if (Number.isInteger(idx) && idx >= 0 && idx < PRIZES.length) counts[idx]++;
     }
 
-    // Giải mốc 200 và 300 là giải cố định; không đưa vào weightedPick().
-
-    // Nếu hai mốc trùng nhau (mỗi 600 lượt), ưu tiên giải 1 tô phở 50K.
-    // Giải ăn phở 2 buổi/tuần không bị mất: sẽ được trao ở mốc 300 hợp lệ kế tiếp.
     let i;
-    if (cyclePosition200 === 200) i = 1;
-    else if (cyclePosition300 === 300) i = 0;
-    else i = weightedPick(counts);
+    if (cyclePosition === 600) i = 0;
+    else if (cyclePosition === 310) i = 1;
+    else i = weightedPick(counts, 598 - ((cyclePosition - 1) - (cyclePosition > 310 ? 1 : 0)));
 
-    // Nếu khách đã từng trúng một giải đặc biệt, loại giải đặc biệt còn lại.
+    // Nếu khách đã từng trúng một giải đặc biệt, không cho trúng giải đặc biệt còn lại.
     if ((i === 0 && hasSpecial1) || (i === 1 && hasSpecial0)) {
-      i = 5; // Chúc Bạn May Mắn Lần Sau
+      i = 5;
     }
     const rewardCode = tokenCode('ANNA');
     const p = PRIZES[i];
@@ -183,8 +205,8 @@ async function api(req, env, url) {
         ? new Date(Date.now() + 2 * 86400000).toISOString()
         : new Date(`${d}T23:59:59+07:00`).toISOString();
     await env.DB.prepare(
-      'INSERT INTO plays(customer_id,play_date,prize_index,prize_name,reward_code,expires_at,cycle_no,cycle_position,cycle200_no,cycle200_position) VALUES(?,?,?,?,?,?,?,?,?,?)'
-    ).bind(c.id, d, i, p.name, rewardCode, specialExpiresAt, Number(reservation300.cycle_no), cyclePosition300, Number(reservation200.cycle_no), cyclePosition200).run();
+      'INSERT INTO plays(customer_id,play_date,prize_index,prize_name,reward_code,expires_at,cycle_no,cycle_position,cycle200_no,cycle200_position,cycle600_no,cycle600_position) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)'
+    ).bind(c.id, d, i, p.name, rewardCode, specialExpiresAt, cycleNo, cyclePosition, 1, null, cycleNo, cyclePosition).run();
     let qr;
     try { qr = makeQrDataUrl(rewardCode); }
     catch (e) { console.error(e); return json({ ok: false, error: 'Tạo mã QR thất bại.' }, 500); }
@@ -224,25 +246,46 @@ async function api(req, env, url) {
 
   if (url.pathname === '/api/admin/login' && req.method === 'POST') {
     const b = await req.json();
-
-    // Đăng nhập độc lập với Cloudflare Secret.
-    // Mã quản trị hiện tại: PhoAnna@2026
     const inputPassword = String(b.password ?? '').trim();
+    if (inputPassword.length < 6) return json({ ok: false, error: 'Mật khẩu phải có ít nhất 6 ký tự.' }, 400);
+    let account = await ensureAdminAccount(env);
+    if (!account) return json({ ok: false, error: 'Chưa cấu hình ADMIN_PASSWORD trên Cloudflare để khởi tạo tài khoản quản trị.' }, 503);
+    const passwordHash = await hashPassword(inputPassword, account.salt);
+    if (passwordHash !== account.password_hash) return json({ ok: false, error: 'Sai mật khẩu.' }, 401);
+    return json({ ok: true, token: account.token_hash });
+  }
 
-    if (inputPassword !== ADMIN_LOGIN_CODE) {
-      return json({ ok: false, error: 'Sai mật khẩu.' }, 401);
-    }
+  if (url.pathname === '/api/admin/status' && req.method === 'GET') {
+    if (!(await adminOk(req, env))) return json({ ok: false, error: 'Không có quyền.' }, 401);
+    const state = await env.DB.prepare('SELECT cycle_no, position, updated_at FROM cycle_state_600 WHERE id=1').first();
+    if (!state) return json({ ok: false, error: 'Chưa khởi tạo bộ đếm 600 lượt.' }, 500);
+    const cycleNo = Number(state.cycle_no || 1);
+    const position = Number(state.position || 0);
+    const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM plays').first();
+    const cycleTotal = await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE cycle600_no=?').bind(cycleNo).first();
+    return json({ ok: true, cycleNo, currentPosition: position, cyclePlays: Number(cycleTotal?.n || 0), totalPlays: Number(total?.n || 0), updatedAt: state.updated_at || null });
+  }
 
-    return json({
-      ok: true,
-      token: await sha256(ADMIN_LOGIN_CODE)
-    });
+  if (url.pathname === '/api/admin/change-password' && req.method === 'POST') {
+    if (!(await adminOk(req, env))) return json({ ok: false, error: 'Không có quyền.' }, 401);
+    const b = await req.json();
+    const newPassword = String(b.newPassword ?? '').trim();
+    if (newPassword.length < 8) return json({ ok: false, error: 'Mật khẩu mới phải có ít nhất 8 ký tự.' }, 400);
+    if (newPassword.length > 128) return json({ ok: false, error: 'Mật khẩu mới quá dài.' }, 400);
+    const salt = randomHex(16);
+    const passwordHash = await hashPassword(newPassword, salt);
+    const tokenHash = await sha256(newPassword);
+    const r = await env.DB.prepare(
+      "UPDATE admin_credentials SET password_hash=?,salt=?,token_hash=?,updated_at=datetime('now') WHERE id=1"
+    ).bind(passwordHash, salt, tokenHash).run();
+    if (r.meta.changes !== 1) return json({ ok: false, error: 'Không thể đổi mật khẩu quản trị.' }, 500);
+    return json({ ok: true, token: tokenHash, message: 'Đã đổi mật khẩu quản trị thành công.' });
   }
 
   // Quán dùng endpoint này sau khi kiểm tra điều kiện tại chỗ.
   // unlockType chỉ nhận 2 hoặc 3; mã có hiệu lực 10 phút và chỉ dùng một lần.
   if (url.pathname === '/api/admin/unlock' && req.method === 'POST') {
-    if (!(await adminOk(req))) return json({ ok: false, error: 'Không có quyền.' }, 401);
+    if (!(await adminOk(req, env))) return json({ ok: false, error: 'Không có quyền.' }, 401);
     const b = await req.json();
     const phone = normPhone(b.phone);
     const unlockType = Number(b.unlockType);
@@ -263,7 +306,7 @@ async function api(req, env, url) {
 
   // Xóa một khách hàng theo số điện thoại, kèm toàn bộ lượt quay và mã mở khóa liên quan.
   if (url.pathname === '/api/admin/delete-customer' && req.method === 'POST') {
-    if (!(await adminOk(req))) return json({ ok: false, error: 'Không có quyền.' }, 401);
+    if (!(await adminOk(req, env))) return json({ ok: false, error: 'Không có quyền.' }, 401);
     const b = await req.json();
     const phone = normPhone(b.phone);
     if (phone.length < 9 || phone.length > 12)
@@ -284,7 +327,7 @@ async function api(req, env, url) {
 
   // Xóa toàn bộ dữ liệu khách hàng, lượt quay, mã mở khóa và lịch sử đổi quà.
   if (url.pathname === '/api/admin/delete-all-customers' && req.method === 'POST') {
-    if (!(await adminOk(req))) return json({ ok: false, error: 'Không có quyền.' }, 401);
+    if (!(await adminOk(req, env))) return json({ ok: false, error: 'Không có quyền.' }, 401);
 
     await env.DB.batch([
       env.DB.prepare('DELETE FROM customer_unlocks'),
@@ -297,7 +340,7 @@ async function api(req, env, url) {
   }
 
   if (url.pathname === '/api/admin/plays' && req.method === 'GET') {
-    if (!(await adminOk(req))) return json({ ok: false, error: 'Không có quyền.' }, 401);
+    if (!(await adminOk(req, env))) return json({ ok: false, error: 'Không có quyền.' }, 401);
     const rows = await env.DB.prepare(
       'SELECT plays.id,customers.name,customers.phone,plays.play_date,plays.prize_name,plays.reward_code,plays.redeemed,plays.redemption_count,plays.redeemed_at,plays.expires_at,plays.created_at FROM plays JOIN customers ON customers.id=plays.customer_id ORDER BY plays.id DESC LIMIT 500'
     ).all();
@@ -305,7 +348,7 @@ async function api(req, env, url) {
   }
 
   if (url.pathname === '/api/admin/redeem' && req.method === 'POST') {
-    if (!(await adminOk(req))) return json({ ok: false, error: 'Không có quyền.' }, 401);
+    if (!(await adminOk(req, env))) return json({ ok: false, error: 'Không có quyền.' }, 401);
     const b = await req.json();
     const code = String(b.code || '').trim();
     const reward = await env.DB.prepare(
