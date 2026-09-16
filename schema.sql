@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS plays (
   cycle_position INTEGER,
   cycle200_no INTEGER NOT NULL DEFAULT 1,
   cycle200_position INTEGER,
+  cycle600_no INTEGER NOT NULL DEFAULT 0,
+  cycle600_position INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY(customer_id) REFERENCES customers(id)
 );
@@ -72,3 +74,13 @@ CREATE TABLE IF NOT EXISTS cycle_state_200 (
 );
 INSERT OR IGNORE INTO cycle_state_200(id, cycle_no, position) VALUES(1, 1, 0);
 CREATE INDEX IF NOT EXISTS idx_plays_cycle200 ON plays(cycle200_no, cycle200_position);
+
+-- Bộ đếm chính 600 lượt/chu kỳ.
+CREATE TABLE IF NOT EXISTS cycle_state_600 (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  cycle_no INTEGER NOT NULL DEFAULT 1,
+  position INTEGER NOT NULL DEFAULT 0 CHECK (position BETWEEN 0 AND 600),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+INSERT OR IGNORE INTO cycle_state_600(id, cycle_no, position) VALUES(1, 1, 0);
+CREATE INDEX IF NOT EXISTS idx_plays_cycle600 ON plays(cycle600_no, cycle600_position);

@@ -31,3 +31,10 @@ CO CHE GIAI:
 - Vi tri 300 cua bo dem 300: An pho mien phi 3 buoi/tuan.
 - Vi tri 200 cua bo dem 200: 1 To Pho Mien Phi 50K.
 - Neu hai moc trung nhau o luot 600, he thong uu tien giai moc 300.
+
+=== ADMIN PASSWORD + BỘ ĐẾM 600 ===
+- Chạy MIGRATION_ADMIN_PASSWORD.sql một lần trên D1 hiện tại.
+- Tạo Cloudflare Secret ADMIN_PASSWORD trước lần đăng nhập đầu tiên.
+- Không có mật khẩu admin trong source code.
+- Admin có thể đổi mật khẩu ngay trong trang quản trị.
+- Admin có thể xem “Lượt hiện tại / 600” trong mục Trạng thái chương trình.
