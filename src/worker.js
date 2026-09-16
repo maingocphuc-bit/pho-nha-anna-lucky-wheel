@@ -91,9 +91,12 @@ async function customerUnlocks(env, customerId, date) {
   return { unlock2: types.has(2), unlock3: types.has(3) };
 }
 function specialExpires(prizeIndex, date) {
+  // Hạn dùng tính chính xác theo thời điểm khách trúng thưởng.
+  // 0 = 7 ngày; 1 = 2 ngày; 2/3/4 = 1 ngày.
   if (prizeIndex === 0) return new Date(Date.now() + 7 * 86400000).toISOString();
   if (prizeIndex === 1) return new Date(Date.now() + 2 * 86400000).toISOString();
-  return new Date(`${date}T23:59:59+07:00`).toISOString();
+  if ([2, 3, 4].includes(prizeIndex)) return new Date(Date.now() + 1 * 86400000).toISOString();
+  return null;
 }
 function chooseRegular(counts) {
   const available = Object.entries(REGULAR_QUOTAS)
@@ -230,7 +233,7 @@ async function api(req, env, url) {
       .bind(c.id,d,i,p.name,rewardCode,expiresAt,cycleNo,cyclePosition,cycleNo,cyclePosition).run();
     let qr; try { qr=makeQrDataUrl(rewardCode); } catch(e) { console.error(e); return json({ok:false,error:'Tạo mã QR thất bại.'},500); }
     return json({ok:true,prizeIndex:i,prize:p.name,special:p.special,rewardCode,qr,
-      specialTerms:i===0?'Có hiệu lực 7 ngày; tối đa 1 tô/ngày; giá trị tối đa 50.000đ/tô; phần vượt quá khách tự thanh toán.':i===1?'Có hiệu lực 2 ngày; áp dụng cho 1 tô phở tối đa 50.000đ.':'',
+      specialTerms:i===0?'Có hiệu lực 7 ngày; tối đa 1 tô/ngày; giá trị tối đa 50.000đ/tô; phần vượt quá khách tự thanh toán.':i===1?'Có hiệu lực 2 ngày; áp dụng cho 1 tô phở tối đa 50.000đ.':i===2?'Có hiệu lực 1 ngày.':i===3?'Có hiệu lực 1 ngày.':i===4?'Có hiệu lực 1 ngày.':'',
       remaining:Math.max(0,3-(used+1)),cycleNo,cyclePosition});
   }
 
