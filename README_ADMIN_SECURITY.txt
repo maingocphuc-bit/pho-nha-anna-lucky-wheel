@@ -3,7 +3,7 @@ PHỞ NHÀ ANNA – BẢO MẬT QUẢN TRỊ
 Bản này không sử dụng ADMIN_PASSWORD của Cloudflare.
 
 Mật khẩu quản trị được lưu trong D1 table admin_credentials dưới dạng:
-- password_hash: PBKDF2-SHA256 với salt riêng.
+- password_hash: SHA-256 có salt riêng (salt ngẫu nhiên).
 - salt: salt ngẫu nhiên.
 - token_hash: SHA-256 của mật khẩu hiện tại, dùng làm token phiên.
 
