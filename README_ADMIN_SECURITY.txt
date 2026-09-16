@@ -1,44 +1,23 @@
-PHỞ NHÀ ANNA – BẢO MẬT ADMIN + HIỂN THỊ BỘ ĐẾM 600
+PHỞ NHÀ ANNA – BẢO MẬT QUẢN TRỊ
 
-1) D1 MIGRATION
-Chạy 1 lần:
-CREATE TABLE IF NOT EXISTS admin_credentials (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  password_hash TEXT NOT NULL,
-  salt TEXT NOT NULL,
-  token_hash TEXT NOT NULL,
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+Bản này không sử dụng ADMIN_PASSWORD của Cloudflare.
 
-2) CẤU HÌNH MẬT KHẨU KHỞI TẠO
-Mật khẩu ADMIN KHÔNG nằm trong worker.js.
-Anh cần tạo Cloudflare Secret tên:
-ADMIN_PASSWORD
+Mật khẩu quản trị được lưu trong D1 table admin_credentials dưới dạng:
+- password_hash: PBKDF2-SHA256 với salt riêng.
+- salt: salt ngẫu nhiên.
+- token_hash: SHA-256 của mật khẩu hiện tại, dùng làm token phiên.
 
-Có thể làm bằng Wrangler:
-npx wrangler secret put ADMIN_PASSWORD
+Thiết lập lần đầu:
+1. Mở /admin.html.
+2. Khi D1 chưa có admin_credentials, form “Thiết lập lần đầu” xuất hiện.
+3. Tạo mật khẩu >= 8 ký tự.
+4. Sau khi tạo, endpoint setup không thể tạo tài khoản lần nữa vì id=1 đã tồn tại.
 
-Hoặc vào Cloudflare Dashboard → Worker → Settings → Variables and Secrets → Add secret.
+Đổi mật khẩu:
+- Đăng nhập admin.
+- Dùng mục “Đổi mật khẩu quản trị”.
+- Hệ thống tạo salt mới và token mới.
 
-Lần đầu đăng nhập, hệ thống lấy ADMIN_PASSWORD làm mật khẩu khởi tạo và lưu dạng mã băm vào D1.
-Sau khi đã khởi tạo, mật khẩu được quản lý trong D1 dạng mã băm; ADMIN_PASSWORD không còn được dùng để đăng nhập.
-
-3) ĐỔI MẬT KHẨU
-Sau khi đăng nhập Admin, dùng mục “Đổi mật khẩu quản trị”.
-Mật khẩu mới được băm PBKDF2 + salt trước khi lưu D1.
-Không lưu mật khẩu dạng chữ thường trong code.
-
-4) HIỂN THỊ BỘ ĐẾM
-Admin có mục “Trạng thái chương trình” hiển thị:
-- Lượt hiện tại / 600
-- Chu kỳ
-- Lượt đã ghi nhận trong chu kỳ
-- Tổng lượt đã quay
-
-Lượt hiện tại lấy trực tiếp từ cycle_state_600, là bộ đếm dùng để cấp số thứ tự cho lượt quay.
-
-5) RESET MẬT KHẨU KHẨN CẤP
-Nếu quên mật khẩu quản trị, xóa đúng 1 dòng trong bảng admin_credentials bằng D1:
-DELETE FROM admin_credentials WHERE id=1;
-
-Sau đó đăng nhập lại bằng ADMIN_PASSWORD đang đặt trong Cloudflare Secret để khởi tạo mật khẩu mới.
+Lưu ý vận hành:
+- Không xóa dòng id=1 trong admin_credentials nếu chưa có phương án tạo tài khoản mới.
+- Không chạy các migration ALTER TABLE đã chạy trước đó.

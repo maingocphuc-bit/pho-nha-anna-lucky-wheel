@@ -1,40 +1,32 @@
-PHỞ NHÀ ANNA - BẢN TRIỂN KHAI
+PHỞ NHÀ ANNA – VÒNG QUAY MAY MẮN 600 LƯỢT
 
-CẤU TRÚC:
-- public/index.html: giao diện khách hàng
-- public/admin.html: trang quản trị
-- src/worker.js: Worker + API D1
-- wrangler.toml: cấu hình Worker, Assets và D1
-- package.json: thư viện cần thiết
-- schema.sql: dùng khi cài mới
-- MIGRATION_D1.sql: chỉ dùng cho migration; D1 hiện tại của anh đã chạy xong nên KHÔNG chạy lại.
+BẢN CHỐT
+- 600 lượt / chu kỳ.
+- Giảm giá 5K: 6 giải.
+- 1 Chai Sữa Tươi Mát Lạnh: 4 giải.
+- 1 Ly Trà Gừng Mát Lạnh: 25 giải.
+- Ăn miễn phí 2 tô phở / 1 tuần: 1 giải / chu kỳ, vị trí ưu tiên 600.
+- 1 Tô Phở Miễn Phí 50K: 1 giải / chu kỳ, vị trí ưu tiên 310.
+- Nếu khách ở vị trí ưu tiên không đủ điều kiện vì đã từng nhận giải đặc biệt còn lại, giải đặc biệt được chuyển sang lượt thường gần nhất đủ điều kiện (riêng vị trí 600 nếu bị chặn thì lượt 600 là lượt may mắn lần sau). Quy tắc này giữ nguyên nguyên tắc một khách không sở hữu cả hai giải đặc biệt.
+- Tối đa 3 lượt/ngày; lượt 2 và 3 cần quán mở khóa.
+- QR phần thưởng có thời hạn theo giải và đổi quà được kiểm soát ở admin.
+- Mật khẩu admin lưu dạng băm trong D1, KHÔNG dùng Cloudflare Secret ADMIN_PASSWORD.
 
-TRIỂN KHAI BẰNG WRANGLER:
-1. Cài Node.js.
-2. Mở Terminal tại thư mục này.
-3. Chạy: npm install
-4. Đăng nhập: npx wrangler login
-5. Triển khai: npm run deploy
+DEPLOY
+1. Giữ nguyên wrangler.toml và D1 binding DB.
+2. Đẩy các file trong thư mục này lên GitHub repo maingocphuc-bit/pho-nha-anna-lucky-wheel.
+3. Cloudflare Pages/Workers deploy lại Worker.
+4. Không cần tạo Secret ADMIN_PASSWORD.
+5. Mở /admin.html. Lần đầu, trang sẽ hiện “Thiết lập lần đầu”; tạo mật khẩu quản trị từ 8 ký tự.
+6. Sau khi tạo xong, mật khẩu được lưu trong D1 và có thể đổi ngay trong trang quản trị.
 
-LƯU Ý:
-- Không chạy lại MIGRATION_D1.sql trên D1 hiện tại nếu các cột/bảng đã tồn tại.
-- Không xóa bảng cycle_state khi chương trình đang hoạt động.
-- Kiểm tra lại tên Worker và domain sau khi deploy.
+D1
+- Bản D1 hiện tại đã có admin_credentials và cycle_state_600 theo các migration đã chạy trước đó.
+- Không chạy lại MIGRATION_600_RULES.sql hoặc MIGRATION_REDEMPTION_AND_SPECIAL_RULES.sql nếu các cột/bảng đã tồn tại.
 
-CAP NHAT V2:
-1. D1 hien tai da co expires_at, cycle_no, cycle_position va cycle_state.
-2. Chay tung lenh trong file MIGRATION_D1_V2.sql mot lan de them bo dem 200 luot.
-3. Sau do deploy src/worker.js va public/index.html, public/admin.html.
-4. Khong xoa du lieu D1 va khong chay lai cac lenh migration cu.
-
-CO CHE GIAI:
-- Vi tri 300 cua bo dem 300: An pho mien phi 3 buoi/tuan.
-- Vi tri 200 cua bo dem 200: 1 To Pho Mien Phi 50K.
-- Neu hai moc trung nhau o luot 600, he thong uu tien giai moc 300.
-
-=== ADMIN PASSWORD + BỘ ĐẾM 600 ===
-- Chạy MIGRATION_ADMIN_PASSWORD.sql một lần trên D1 hiện tại.
-- Tạo Cloudflare Secret ADMIN_PASSWORD trước lần đăng nhập đầu tiên.
-- Không có mật khẩu admin trong source code.
-- Admin có thể đổi mật khẩu ngay trong trang quản trị.
-- Admin có thể xem “Lượt hiện tại / 600” trong mục Trạng thái chương trình.
+ADMIN
+- Xem Lượt hiện tại / 600, Chu kỳ, Lượt trong chu kỳ, Tổng lượt.
+- Mở khóa lượt 2/3.
+- Kiểm tra và đổi quà.
+- Đổi mật khẩu.
+- Xem lịch sử lượt quay.
