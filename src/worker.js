@@ -65,6 +65,17 @@ async function adminOk(req, env) {
   const account = await getAdminAccount(env);
   return !!(account && supplied === account.token_hash);
 }
+async function ensurePlayColumns(env) {
+  const info = await env.DB.prepare('PRAGMA table_info(plays)').all();
+  const cols = new Set((info.results || []).map(x => String(x.name)));
+  const adds = [];
+  if (!cols.has('redemption_count')) adds.push("ALTER TABLE plays ADD COLUMN redemption_count INTEGER NOT NULL DEFAULT 0");
+  if (!cols.has('expires_at')) adds.push("ALTER TABLE plays ADD COLUMN expires_at TEXT");
+  if (!cols.has('cycle600_no')) adds.push("ALTER TABLE plays ADD COLUMN cycle600_no INTEGER NOT NULL DEFAULT 1");
+  if (!cols.has('cycle600_position')) adds.push("ALTER TABLE plays ADD COLUMN cycle600_position INTEGER");
+  for (const sql of adds) await env.DB.prepare(sql).run();
+}
+
 async function ensureCycle600(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS cycle_state_600 (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -225,6 +236,7 @@ async function api(req, env, url) {
 
   if (url.pathname === '/api/admin/status' && req.method === 'GET') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
+    await ensurePlayColumns(env);
     await ensureCycle600(env);
     const state=await env.DB.prepare('SELECT cycle_no,position,updated_at FROM cycle_state_600 WHERE id=1').first();
     const total=await env.DB.prepare('SELECT COUNT(*) AS n FROM plays').first();
@@ -277,12 +289,14 @@ async function api(req, env, url) {
 
   if (url.pathname === '/api/admin/plays' && req.method === 'GET') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
+    await ensurePlayColumns(env);
     const rows=await env.DB.prepare('SELECT plays.id,customers.name,customers.phone,plays.play_date,plays.prize_name,plays.reward_code,plays.redeemed,plays.redemption_count,plays.redeemed_at,plays.expires_at,plays.cycle600_no,plays.cycle600_position,plays.created_at FROM plays JOIN customers ON customers.id=plays.customer_id ORDER BY plays.id DESC LIMIT 500').all();
     return json({ok:true,rows:rows.results});
   }
 
   if (url.pathname === '/api/admin/redeem' && req.method === 'POST') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
+    await ensurePlayColumns(env);
     const code=String((await req.json()).code||'').trim();
     const r=await env.DB.prepare('SELECT id,customer_id,prize_index,redemption_count,redeemed_at,expires_at FROM plays WHERE reward_code=?').bind(code).first();
     if(!r)return json({ok:false,error:'Mã không hợp lệ.'},400);
