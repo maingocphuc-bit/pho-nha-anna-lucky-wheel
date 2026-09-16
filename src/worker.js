@@ -108,7 +108,24 @@ function chooseRegular(counts) {
   }
   return available[available.length - 1].i;
 }
+async function syncCycleState(env) {
+  await ensureCycle600(env);
+  const state = await env.DB.prepare('SELECT cycle_no,position FROM cycle_state_600 WHERE id=1').first();
+  if (!state) return null;
+  const maxRow = await env.DB.prepare('SELECT MAX(cycle600_no) AS cycle_no, MAX(cycle600_position) AS position FROM plays WHERE cycle600_no=(SELECT MAX(cycle600_no) FROM plays)').first();
+  const maxCycle = Number(maxRow?.cycle_no || 0);
+  const maxPosition = Number(maxRow?.position || 0);
+  let cycleNo = Number(state.cycle_no || 1);
+  let position = Number(state.position || 0);
+  if (maxCycle > cycleNo || (maxCycle === cycleNo && maxPosition > position)) {
+    cycleNo = maxCycle;
+    position = maxPosition;
+    await env.DB.prepare("UPDATE cycle_state_600 SET cycle_no=?,position=?,updated_at=datetime('now') WHERE id=1").bind(cycleNo,position).run();
+  }
+  return {cycleNo,position};
+}
 async function reserveCyclePosition(env) {
+  await syncCycleState(env);
   const result = await env.DB.prepare(`
     UPDATE cycle_state_600
     SET cycle_no = CASE WHEN position >= 600 THEN cycle_no + 1 ELSE cycle_no END,
@@ -165,24 +182,41 @@ async function api(req, env, url) {
       return !(specialIndex===0 ? history.has1 : history.has0);
     };
 
+    const special1Awarded = cycleRows.some(r => Number(r.prize_index)===1);
+    const special0Awarded = cycleRows.some(r => Number(r.prize_index)===0);
+
     let i;
-    // 310 và 600 là vị trí ưu tiên. Nếu người trúng không đủ điều kiện, hệ thống
-    // chuyển giải đặc biệt sang lượt gần nhất đủ điều kiện để vẫn giữ 1 giải/cycle.
-    if (cyclePosition === 310 || cyclePosition === 600) {
-      const specialIndex = cyclePosition === 310 ? 1 : 0;
-      if (await eligibleFor(specialIndex)) {
-        i = specialIndex;
-      } else {
-        i = 5;
-      }
+    // Giải 50K ưu tiên vị trí 310. Nếu khách tại 310 không đủ điều kiện,
+    // trao cho người đủ điều kiện ở lượt gần nhất sau 310.
+    if (!special1Awarded && cyclePosition >= 310 && await eligibleFor(1)) {
+      i = 1;
+    // Giải 2 tô ưu tiên vị trí 600. Nếu khách tại 600 không đủ điều kiện,
+    // đổi (swap) với lượt thường gần nhất trước đó của một khách đủ điều kiện.
+    } else if (!special0Awarded && cyclePosition === 600 && await eligibleFor(0)) {
+      i = 0;
     } else {
-      // Nếu giải 50K ở vị trí 310 bị chặn, ưu tiên trao ở lượt thường gần nhất.
-      const special1Awarded = cycleRows.some(r => Number(r.prize_index)===1);
-      const special0Awarded = cycleRows.some(r => Number(r.prize_index)===0);
-      if (!special1Awarded && cyclePosition > 310 && await eligibleFor(1)) i = 1;
-      else if (!special0Awarded && cyclePosition === 600 && await eligibleFor(0)) i = 0;
-      else {
-        i = chooseRegular(counts);
+      i = chooseRegular(counts);
+    }
+
+    // Nếu vị trí 600 gặp khách đã có giải đặc biệt còn lại, tìm lượt thường
+    // gần nhất trước đó của một khách chưa có giải đặc biệt 50K và đổi giải.
+    if (cyclePosition === 600 && !special0Awarded && !await eligibleFor(0)) {
+      const prior = await env.DB.prepare(`
+        SELECT p.id,p.prize_index,p.customer_id,p.reward_code,p.created_at
+        FROM plays p
+        WHERE p.cycle600_no=? AND p.cycle600_position<? AND p.prize_index IN (2,3,4,5)
+          AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=1)
+        ORDER BY p.cycle600_position DESC LIMIT 1
+      `).bind(cycleNo,cyclePosition).first();
+      if (prior) {
+        const displacedIndex=Number(prior.prize_index);
+        const specialCode=String(prior.reward_code);
+        const specialExpiry=specialExpires(0,d);
+        await env.DB.prepare('UPDATE plays SET prize_index=0,prize_name=?,expires_at=? WHERE id=?')
+          .bind(PRIZES[0].name,specialExpiry,prior.id).run();
+        i=displacedIndex;
+      } else {
+        i=5;
       }
     }
 
@@ -238,10 +272,12 @@ async function api(req, env, url) {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
     await ensurePlayColumns(env);
     await ensureCycle600(env);
+    const synced=await syncCycleState(env);
     const state=await env.DB.prepare('SELECT cycle_no,position,updated_at FROM cycle_state_600 WHERE id=1').first();
     const total=await env.DB.prepare('SELECT COUNT(*) AS n FROM plays').first();
     const cycle=await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE cycle600_no=?').bind(Number(state.cycle_no)).first();
-    return json({ok:true,cycleNo:Number(state.cycle_no),currentPosition:Number(state.position),cyclePlays:Number(cycle?.n||0),totalPlays:Number(total?.n||0),updatedAt:state.updated_at||null});
+    const current=Math.min(600,Number(state.position||0));
+    return json({ok:true,cycleNo:Number(state.cycle_no),currentPosition:current,cyclePlays:Number(cycle?.n||0),totalPlays:Number(total?.n||0),updatedAt:state.updated_at||null});
   }
 
   if (url.pathname === '/api/admin/change-password' && req.method === 'POST') {
