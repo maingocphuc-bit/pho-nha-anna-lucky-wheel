@@ -51,12 +51,13 @@ async function createAdminAccount(env, password) {
   if (existing) return { ok:false, error:'Tài khoản quản trị đã được khởi tạo.' };
   const salt = randomHex(16);
   const passwordHash = await hashPassword(p, salt);
-  const tokenHash = await sha256(p);
+  const sessionToken = randomHex(32);
+  const tokenHash = await sha256(sessionToken);
   const r = await env.DB.prepare(
     "INSERT OR IGNORE INTO admin_credentials(id,password_hash,salt,token_hash,updated_at) VALUES(1,?,?,?,datetime('now'))"
   ).bind(passwordHash, salt, tokenHash).run();
   if (r.meta.changes !== 1) return { ok:false, error:'Không thể khởi tạo tài khoản quản trị.' };
-  return { ok:true, token:tokenHash };
+  return { ok:true, token:sessionToken };
 }
 
 async function adminOk(req, env) {
@@ -189,14 +190,12 @@ async function api(req, env, url) {
     const special0Awarded = cycleRows.some(r => Number(r.prize_index)===0);
 
     let i;
-    // Giải 50K ưu tiên vị trí 310. Nếu khách tại 310 không đủ điều kiện,
-    // trao cho người đủ điều kiện ở lượt gần nhất sau 310.
-    if (!special1Awarded && cyclePosition >= 310 && await eligibleFor(1)) {
-      i = 1;
-    // Giải 2 tô ưu tiên vị trí 600. Nếu khách tại 600 không đủ điều kiện,
-    // đổi (swap) với lượt thường gần nhất trước đó của một khách đủ điều kiện.
-    } else if (!special0Awarded && cyclePosition === 600 && await eligibleFor(0)) {
+    // Vị trí 600 phải ưu tiên giải 2 tô phở trước mọi giải đặc biệt còn thiếu.
+    // Vị trí 310 trở đi mới dùng cho giải 50K nếu giải này chưa được trao.
+    if (cyclePosition === 600 && !special0Awarded && await eligibleFor(0)) {
       i = 0;
+    } else if (!special1Awarded && cyclePosition >= 310 && await eligibleFor(1)) {
+      i = 1;
     } else {
       i = chooseRegular(counts);
     }
@@ -208,14 +207,14 @@ async function api(req, env, url) {
         SELECT p.id,p.prize_index,p.customer_id,p.reward_code,p.created_at
         FROM plays p
         WHERE p.cycle600_no=? AND p.cycle600_position<? AND p.prize_index IN (2,3,4,5)
+          AND p.redeemed=0 AND COALESCE(p.redemption_count,0)=0
           AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=1)
         ORDER BY p.cycle600_position DESC LIMIT 1
       `).bind(cycleNo,cyclePosition).first();
       if (prior) {
         const displacedIndex=Number(prior.prize_index);
-        const specialCode=String(prior.reward_code);
         const specialExpiry=specialExpires(0,d);
-        await env.DB.prepare('UPDATE plays SET prize_index=0,prize_name=?,expires_at=? WHERE id=?')
+        await env.DB.prepare('UPDATE plays SET prize_index=0,prize_name=?,expires_at=?,redeemed=0,redemption_count=0,redeemed_at=NULL WHERE id=?')
           .bind(PRIZES[0].name,specialExpiry,prior.id).run();
         i=displacedIndex;
       } else {
@@ -268,7 +267,10 @@ async function api(req, env, url) {
     if(!account)return json({ok:false,error:'Chưa khởi tạo tài khoản quản trị. Hãy tạo mật khẩu lần đầu.'},503);
     const passwordHash=await hashPassword(inputPassword,account.salt);
     if(passwordHash!==account.password_hash)return json({ok:false,error:'Sai mật khẩu.'},401);
-    return json({ok:true,token:account.token_hash});
+    const sessionToken=randomHex(32), tokenHash=await sha256(sessionToken);
+    const updated=await env.DB.prepare("UPDATE admin_credentials SET token_hash=?,updated_at=datetime('now') WHERE id=1").bind(tokenHash).run();
+    if(updated.meta.changes!==1)return json({ok:false,error:'Không thể tạo phiên quản trị.'},500);
+    return json({ok:true,token:sessionToken});
   }
 
   if (url.pathname === '/api/admin/status' && req.method === 'GET') {
@@ -288,7 +290,7 @@ async function api(req, env, url) {
     const b=await req.json(); const p=String(b.newPassword??'').trim();
     if(p.length<8)return json({ok:false,error:'Mật khẩu mới phải có ít nhất 8 ký tự.'},400);
     if(p.length>128)return json({ok:false,error:'Mật khẩu mới quá dài.'},400);
-    const salt=randomHex(16); const ph=await hashPassword(p,salt); const th=await sha256(p);
+    const salt=randomHex(16); const ph=await hashPassword(p,salt); const sessionToken=randomHex(32); const th=await sha256(sessionToken);
     const r=await env.DB.prepare("UPDATE admin_credentials SET password_hash=?,salt=?,token_hash=?,updated_at=datetime('now') WHERE id=1").bind(ph,salt,th).run();
     if(r.meta.changes!==1)return json({ok:false,error:'Không thể đổi mật khẩu quản trị.'},500);
     return json({ok:true,token:th,message:'Đã đổi mật khẩu quản trị thành công.'});
