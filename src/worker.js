@@ -64,7 +64,9 @@ async function adminOk(req, env) {
   const supplied = req.headers.get('X-Admin-Token') || '';
   if (!supplied) return false;
   const account = await getAdminAccount(env);
-  return !!(account && supplied === account.token_hash);
+  if (!account) return false;
+  const suppliedHash = await sha256(supplied);
+  return suppliedHash === account.token_hash;
 }
 async function ensurePlayColumns(env) {
   const info = await env.DB.prepare('PRAGMA table_info(plays)').all();
@@ -262,7 +264,7 @@ async function api(req, env, url) {
 
   if (url.pathname === '/api/admin/login' && req.method === 'POST') {
     const b=await req.json(); const inputPassword=String(b.password??'').trim();
-    if(inputPassword.length<6)return json({ok:false,error:'Mật khẩu phải có ít nhất 6 ký tự.'},400);
+    if(inputPassword.length<8)return json({ok:false,error:'Mật khẩu phải có ít nhất 8 ký tự.'},400);
     const account=await getAdminAccount(env);
     if(!account)return json({ok:false,error:'Chưa khởi tạo tài khoản quản trị. Hãy tạo mật khẩu lần đầu.'},503);
     const passwordHash=await hashPassword(inputPassword,account.salt);
@@ -293,7 +295,7 @@ async function api(req, env, url) {
     const salt=randomHex(16); const ph=await hashPassword(p,salt); const sessionToken=randomHex(32); const th=await sha256(sessionToken);
     const r=await env.DB.prepare("UPDATE admin_credentials SET password_hash=?,salt=?,token_hash=?,updated_at=datetime('now') WHERE id=1").bind(ph,salt,th).run();
     if(r.meta.changes!==1)return json({ok:false,error:'Không thể đổi mật khẩu quản trị.'},500);
-    return json({ok:true,token:th,message:'Đã đổi mật khẩu quản trị thành công.'});
+    return json({ok:true,token:sessionToken,message:'Đã đổi mật khẩu quản trị thành công.'});
   }
 
   if (url.pathname === '/api/admin/unlock' && req.method === 'POST') {
