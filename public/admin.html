@@ -23,6 +23,8 @@ button{white-space:nowrap}
   h2{font-size:clamp(18px,5.4vw,26px)}
 }
 
+
+.statusGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0 10px}.statusBox{background:#fff;border:2px solid #e2c789;border-radius:14px;padding:12px;text-align:center}.statusLabel{font-size:12px;color:#6d5145;font-weight:700}.statusValue{font-size:24px;font-weight:900;color:#9b2d25;margin-top:4px}.statusCard button{margin-top:10px}.statusCard .small{margin-top:8px}@media(max-width:560px){.statusGrid{grid-template-columns:1fr 1fr}.statusValue{font-size:20px}}
 </style>
 </head>
 <body><div class="wrap">
@@ -30,6 +32,14 @@ button{white-space:nowrap}
 <section id="loginCard" class="card"><h2>🔐 Đăng nhập quản lý</h2><label>Mật khẩu quản lý</label><input id="password" type="password" placeholder="Nhập mật khẩu ADMIN_PASSWORD"><button id="loginBtn">ĐĂNG NHẬP</button><div id="loginMsg" class="msg hidden"></div></section>
 <div id="app" class="hidden">
 <button class="logout" id="logoutBtn">Đăng xuất</button>
+<section class="card statusCard"><h2>📊 Trạng thái chương trình</h2><div class="statusGrid">
+<div class="statusBox"><div class="statusLabel">Lượt hiện tại</div><div class="statusValue" id="currentSpin">— / 600</div></div>
+<div class="statusBox"><div class="statusLabel">Chu kỳ</div><div class="statusValue" id="cycleNo">—</div></div>
+<div class="statusBox"><div class="statusLabel">Lượt trong chu kỳ</div><div class="statusValue" id="cyclePlays">—</div></div>
+<div class="statusBox"><div class="statusLabel">Tổng lượt đã quay</div><div class="statusValue" id="totalPlays">—</div></div>
+</div><div class="small" id="statusUpdated">Chưa tải trạng thái</div><button id="statusRefreshBtn" type="button">🔄 CẬP NHẬT LƯỢT QUAY</button></section>
+
+<section class="card"><h2>🔐 Đổi mật khẩu quản trị</h2><p class="small">Mật khẩu không nằm trong mã nguồn. Mật khẩu mới được lưu dưới dạng mã băm trong D1.</p><label>Mật khẩu mới</label><input id="newAdminPassword" type="password" minlength="8" placeholder="Ít nhất 8 ký tự"><label>Nhập lại mật khẩu mới</label><input id="newAdminPassword2" type="password" minlength="8" placeholder="Nhập lại mật khẩu mới"><button id="changePasswordBtn" type="button">🔑 ĐỔI MẬT KHẨU</button><div id="passwordMsg" class="msg hidden"></div></section>
 <section class="card"><h2>🔓 Mở khóa lượt quay</h2><p class="small">Chỉ tạo mã sau khi đã kiểm tra điều kiện khách hàng có mặt trực tiếp tại quán.</p><label>Số điện thoại khách hàng</label><input id="phone" inputmode="tel" placeholder="Nhập số điện thoại đã đăng ký"><label>Loại lượt cần mở khóa</label><select id="unlockType"><option value="2">Lượt quay thứ 2 – Mời bạn cùng ăn</option><option value="3">Lượt quay thứ 3 – Đăng ảnh và tag 3 bạn</option></select><button id="makeBtn">TẠO MÃ / QR MỞ KHÓA</button><div id="makeMsg" class="msg hidden"></div><div id="qrBox" class="qr hidden"><img id="qrImg"><div class="token" id="tokenText"></div><div class="small">Mã có hiệu lực 10 phút và chỉ dùng một lần.</div></div></section>
 <section class="card"><h2>🎁 Kiểm tra và đổi quà</h2>
 <label>Mã phần thưởng</label>
@@ -76,7 +86,7 @@ function show(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}
 function hide(id){$(id).classList.add('hidden')}
 function setApp(on){$('app').classList.toggle('hidden',!on);$('loginCard').classList.toggle('hidden',on)}
 async function api(path,opt={}){opt.headers={...(opt.headers||{}),'Content-Type':'application/json'};if(adminToken)opt.headers['X-Admin-Token']=adminToken;const r=await fetch(path,opt);return await r.json()}
-$('loginBtn').onclick=async()=>{hide('loginMsg');try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('password').value})});if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');adminToken=r.token;sessionStorage.setItem('annaAdminToken',adminToken);setApp(true);loadPlays()}catch(e){show('loginMsg',e.message)}};
+$('loginBtn').onclick=async()=>{hide('loginMsg');try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('password').value})});if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');adminToken=r.token;sessionStorage.setItem('annaAdminToken',adminToken);setApp(true);loadPlays();loadStatus()}catch(e){show('loginMsg',e.message)}};
 $('logoutBtn').onclick=()=>{adminToken='';sessionStorage.removeItem('annaAdminToken');setApp(false)};
 $('makeBtn').onclick=async()=>{hide('makeMsg');hide('qrBox');try{const r=await api('/api/admin/unlock',{method:'POST',body:JSON.stringify({phone:$('phone').value,unlockType:Number($('unlockType').value)})});if(!r.ok)throw Error(r.error||'Không tạo được mã');$('qrImg').src=r.qr;$('tokenText').textContent=r.token;$('qrBox').classList.remove('hidden');show('makeMsg','Đã tạo mã mở khóa thành công. Cho khách quét QR hoặc nhập mã.')}catch(e){show('makeMsg',e.message)}};
 $('redeemBtn').onclick=async()=>{hide('redeemMsg');try{const r=await api('/api/admin/redeem',{method:'POST',body:JSON.stringify({code:$('rewardCode').value.trim()})});if(!r.ok)throw Error(r.error||'Không đổi được quà');show('redeemMsg','✅ Đổi quà thành công!');loadPlays()}catch(e){show('redeemMsg',e.message)}};
@@ -130,6 +140,32 @@ $('scanBtn').onclick=async()=>{
 };
 $('stopScanBtn').onclick=stopScanner;
 
+async function loadStatus(){
+  try{
+    const r=await api('/api/admin/status');
+    if(!r.ok){$('currentSpin').textContent='— / 600';$('cycleNo').textContent='—';$('cyclePlays').textContent='—';$('totalPlays').textContent='—';$('statusUpdated').textContent=r.error||'Không tải được trạng thái';return;}
+    $('currentSpin').textContent=`${r.currentPosition} / 600`;
+    $('cycleNo').textContent=r.cycleNo;
+    $('cyclePlays').textContent=r.cyclePlays;
+    $('totalPlays').textContent=r.totalPlays;
+    $('statusUpdated').textContent=r.updatedAt?`Cập nhật bộ đếm: ${r.updatedAt}`:'Đã cập nhật';
+  }catch(e){$('statusUpdated').textContent='Không tải được trạng thái.';}
+}
+$('statusRefreshBtn').onclick=loadStatus;
+$('changePasswordBtn').onclick=async()=>{
+  hide('passwordMsg');
+  const p1=$('newAdminPassword').value.trim(), p2=$('newAdminPassword2').value.trim();
+  if(p1.length<8){show('passwordMsg','Mật khẩu mới phải có ít nhất 8 ký tự.');return}
+  if(p1!==p2){show('passwordMsg','Hai mật khẩu không trùng nhau.');return}
+  try{
+    const r=await api('/api/admin/change-password',{method:'POST',body:JSON.stringify({newPassword:p1})});
+    if(!r.ok)throw Error(r.error||'Không đổi được mật khẩu');
+    adminToken=r.token;sessionStorage.setItem('annaAdminToken',adminToken);
+    $('newAdminPassword').value='';$('newAdminPassword2').value='';
+    show('passwordMsg','✅ Đã đổi mật khẩu quản trị thành công.');
+  }catch(e){show('passwordMsg',e.message)}
+};
+
 async function loadPlays(){const r=await api('/api/admin/plays');if(!r.ok){$('playsBody').innerHTML='<tr><td colspan="8">'+(r.error||'Không tải được dữ liệu')+'</td></tr>';return} $('playsBody').innerHTML=(r.rows||[]).map(x=>`<tr><td>${x.id}</td><td>${esc(x.name)}</td><td>${esc(x.phone)}</td><td>${esc(x.play_date)}</td><td>${esc(x.prize_name)}</td><td>${x.expires_at?esc(x.expires_at):'—'}</td><td>${Number(x.redemption_count||0)} / ${x.prize_name==='Ăn miễn phí 2 tô phở / 1 tuần'?'2':'1'}</td><td>${x.redeemed?'Đã đổi đủ':'Chưa đủ / Chưa đổi'}</td></tr>`).join('')||'<tr><td colspan="8">Chưa có dữ liệu</td></tr>'}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 $('refreshBtn').onclick=loadPlays;
@@ -161,5 +197,5 @@ $('deleteAllBtn').onclick=async()=>{
   }catch(e){show('deleteMsg',e.message)}
 };
 
-if(adminToken)setApp(true);
+if(adminToken){setApp(true);loadStatus();loadPlays();}
 </script></body></html>
