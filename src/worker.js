@@ -23,6 +23,11 @@ function json(data, status = 200) {
 function normPhone(v) { return String(v || '').replace(/\D/g, ''); }
 function today() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date()); }
 function tokenCode(prefix = 'ANNA') { return prefix + '-' + crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase(); }
+function randomHex(bytes = 16) {
+  const a = new Uint8Array(bytes);
+  crypto.getRandomValues(a);
+  return [...a].map(x => x.toString(16).padStart(2, '0')).join('');
+}
 function makeQrDataUrl(text) {
   const svg = new QRCode({ content: text, padding: 4, width: 360, height: 360, color: '#000000', background: '#ffffff', ecl: 'H' }).svg();
   return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
