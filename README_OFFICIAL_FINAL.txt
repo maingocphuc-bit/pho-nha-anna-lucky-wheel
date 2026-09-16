@@ -20,6 +20,7 @@ BẢN CHẠY CHÍNH THỨC
 7. Admin dùng mật khẩu hash + salt trong D1; không phụ thuộc Cloudflare ADMIN_PASSWORD.
 8. Admin có: trạng thái 600, mở khóa lượt, quét QR đổi quà, nhập mã, đổi mật khẩu, xóa 1 khách, xóa toàn bộ dữ liệu test, lịch sử lượt quay.
 9. Xóa toàn bộ dữ liệu khách hàng đưa bộ đếm về chu kỳ 1, vị trí 0/600; không xóa tài khoản admin.
+10. Hạn dùng: 2 tô phở = 7 ngày, tối đa 1 tô/ngày; 1 tô 50K = 2 ngày; Giảm giá 5K, Sữa Tươi và Trà Gừng = 1 ngày kể từ thời điểm trúng thưởng.
 
 LƯU Ý TRƯỚC KHI CHẠY THẬT:
 - Sau khi deploy bản này, nếu dữ liệu hiện tại chỉ là dữ liệu test, dùng nút "XÓA TOÀN BỘ DỮ LIỆU KHÁCH HÀNG" một lần để đưa bộ đếm về 0/600.

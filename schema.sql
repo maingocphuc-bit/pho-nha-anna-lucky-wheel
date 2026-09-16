@@ -21,13 +21,22 @@ CREATE TABLE IF NOT EXISTS plays (
   cycle_position INTEGER,
   cycle200_no INTEGER NOT NULL DEFAULT 1,
   cycle200_position INTEGER,
-  cycle600_no INTEGER NOT NULL DEFAULT 0,
+  cycle600_no INTEGER NOT NULL DEFAULT 1,
   cycle600_position INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY(customer_id) REFERENCES customers(id)
 );
 CREATE INDEX IF NOT EXISTS idx_plays_customer_date ON plays(customer_id, play_date);
 CREATE INDEX IF NOT EXISTS idx_plays_code ON plays(reward_code);
+
+-- Tài khoản quản trị: chỉ lưu hash mật khẩu + salt và hash token phiên.
+CREATE TABLE IF NOT EXISTS admin_credentials (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  password_hash TEXT NOT NULL,
+  salt TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 CREATE TABLE IF NOT EXISTS unlock_tokens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

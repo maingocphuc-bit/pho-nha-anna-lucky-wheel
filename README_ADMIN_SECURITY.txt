@@ -5,7 +5,7 @@ Bản này không sử dụng ADMIN_PASSWORD của Cloudflare.
 Mật khẩu quản trị được lưu trong D1 table admin_credentials dưới dạng:
 - password_hash: SHA-256 có salt riêng (salt ngẫu nhiên).
 - salt: salt ngẫu nhiên.
-- token_hash: SHA-256 của mật khẩu hiện tại, dùng làm token phiên.
+- token_hash: SHA-256 của token phiên ngẫu nhiên; token phiên không phải là mật khẩu.
 
 Thiết lập lần đầu:
 1. Mở /admin.html.
@@ -16,7 +16,7 @@ Thiết lập lần đầu:
 Đổi mật khẩu:
 - Đăng nhập admin.
 - Dùng mục “Đổi mật khẩu quản trị”.
-- Hệ thống tạo salt mới và token mới.
+- Hệ thống tạo salt mới và token phiên ngẫu nhiên mới.
 
 Lưu ý vận hành:
 - Không xóa dòng id=1 trong admin_credentials nếu chưa có phương án tạo tài khoản mới.
