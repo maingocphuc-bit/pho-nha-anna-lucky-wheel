@@ -114,20 +114,22 @@ function todayKey(){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 
-async function refreshDailyConfig(){try{const r=await fetch('/api/daily-config');const b=await r.json();if(!b.ok)return;totalDaily=Math.max(1,Number(b.totalDaily||4));freeDaily=Math.min(totalDaily,Math.max(0,Number(b.freeDaily||0)));taskDaily=Math.min(Math.max(0,totalDaily-freeDaily),Math.max(0,Number(b.taskDaily||0)));taskEnabled=!!b.taskEnabled;taskLabel=String(b.taskLabel||'Làm nhiệm vụ để thêm lượt');if(phone)remaining=Math.max(0,totalDaily-usedToday);const rf=document.getElementById('ruleFree'),rt=document.getElementById('ruleTask'),rm=document.getElementById('ruleTotal');if(rf)rf.textContent=freeDaily+' lượt quay miễn phí';if(rt)rt.textContent=taskDaily+' lượt quay';if(rm)rm.textContent=totalDaily+' lượt quay trong 1 ngày';const tt=document.getElementById('taskTitle'),tx=document.getElementById('taskText');if(tt)tt.textContent=taskEnabled&&taskDaily>0?'Làm nhiệm vụ – mở thêm '+taskDaily+' lượt':'Lượt chơi';if(tx)tx.textContent=taskEnabled&&taskDaily>0?taskLabel+'. Sau khi được quán xác nhận, nhân viên sẽ mở thêm '+taskDaily+' lượt cho bạn.':'Hiện không yêu cầu nhiệm vụ để chơi thêm.';updateTurn();}catch(e){}}
+async function refreshDailyConfig(){try{const r=await fetch('/api/daily-config',{cache:'no-store'});const b=await r.json();if(!b.ok)return;totalDaily=Math.max(1,Number(b.totalDaily||4));freeDaily=Math.min(totalDaily,Math.max(0,Number(b.freeDaily||0)));taskDaily=Math.min(Math.max(0,totalDaily-freeDaily),Math.max(0,Number(b.taskDaily||0)));taskEnabled=!!b.taskEnabled;taskLabel=String(b.taskLabel||'Làm nhiệm vụ để thêm lượt');if(phone)remaining=Math.max(0,totalDaily-usedToday);const rf=document.getElementById('ruleFree'),rt=document.getElementById('ruleTask'),rm=document.getElementById('ruleTotal');if(rf)rf.textContent=freeDaily+' lượt quay miễn phí';if(rt)rt.textContent=taskDaily+' lượt quay';if(rm)rm.textContent=totalDaily+' lượt quay trong 1 ngày';const tt=document.getElementById('taskTitle'),tx=document.getElementById('taskText');if(tt)tt.textContent=taskEnabled&&taskDaily>0?'Làm nhiệm vụ – mở thêm '+taskDaily+' lượt':'Lượt chơi';if(tx)tx.textContent=taskEnabled&&taskDaily>0?taskLabel+'. Sau khi được quán xác nhận, nhân viên sẽ mở thêm '+taskDaily+' lượt cho bạn.':'Hiện không yêu cầu nhiệm vụ để chơi thêm.';updateTurn();}catch(e){}}
 
-async function syncPlayerState(){
-  if(!phone || busy) return;
+async function refreshPlayerState(){
+  if(!phone)return;
   try{
-    const r=await post('/api/register',{name:document.getElementById('name').value.trim()||'Khách',phone});
+    const name=document.getElementById('name').value.trim();
+    if(name.length<2)return;
+    const r=await post('/api/register',{name,phone});
     usedToday=Number(r.used||0);
     totalDaily=Number(r.totalDaily||totalDaily);
     freeDaily=Number(r.freeDaily??freeDaily);
     taskDaily=Number(r.taskDaily??taskDaily);
     taskEnabled=r.taskEnabled!==false;
     taskLabel=String(r.taskLabel||taskLabel);
-    inviteUnlock=!!r.inviteUnlock;
     remaining=Number(r.remaining||0);
+    inviteUnlock=!!r.inviteUnlock;
     updateTurn();
   }catch(e){}
 }
@@ -157,13 +159,10 @@ async function restoreSession(){
 function drawWheel(){const cx=350,cy=350,r=340,s=2*Math.PI/6;ctx.clearRect(0,0,700,700);for(let i=0;i<6;i++){const a=-Math.PI/2+i*s,b=a+s;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,b);ctx.closePath();ctx.fillStyle=colors[i];ctx.fill();ctx.strokeStyle='#fff7d5';ctx.lineWidth=7;ctx.stroke();const mid=a+s/2,x=cx+Math.cos(mid)*r*.60,y=cy+Math.sin(mid)*r*.60;ctx.save();ctx.translate(x,y);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='#000b';ctx.shadowBlur=4;ctx.shadowOffsetY=2;ctx.font='900 24px Arial';ctx.fillText(labels[i][0],0,-17);ctx.font='900 21px Arial';ctx.fillText(labels[i][1],0,17);ctx.restore();}ctx.beginPath();ctx.arc(cx,cy,r+1,0,Math.PI*2);ctx.strokeStyle='#ffd96a';ctx.lineWidth=10;ctx.stroke();}
 drawWheel();
 refreshDailyConfig();
-setInterval(refreshDailyConfig,15000);
-// Keep the customer screen synchronized with admin unlocks without requiring F5.
-setInterval(syncPlayerState,5000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncPlayerState();});
-async function post(path,data){let r;try{r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),cache:'no-store'});}catch(e){throw new Error('Không kết nối được máy chủ. Anh thử lại sau ít giây.')}let b={};try{b=await r.json()}catch(e){}if(!r.ok||b.ok===false)throw new Error(b.error||('Máy chủ trả về lỗi '+r.status));return b;}
-function updateTurn(){const need=(taskEnabled&&taskDaily>0&&usedToday>=freeDaily&&usedToday<totalDaily&&!inviteUnlock);const turn=document.getElementById('turn');if(need){turn.textContent='Bạn đã dùng '+usedToday+' lượt miễn phí. Còn '+Math.max(0,totalDaily-usedToday)+' lượt sau khi mở khóa.';}else{turn.textContent='Bạn còn '+Math.max(0,totalDaily-usedToday)+' lượt quay hôm nay';}document.getElementById('spin').disabled=busy||remaining<=0||need;document.getElementById('unlockBox').classList.toggle('hidden',!need);}
-document.getElementById('continue').onclick=async()=>{const name=document.getElementById('name').value.trim();phone=document.getElementById('phone').value.replace(/\D/g,'');const msg=document.getElementById('msg');msg.textContent='';if(name.length<2||phone.length<9){msg.textContent='Vui lòng nhập họ tên và số điện thoại hợp lệ.';return}const b=document.getElementById('continue');b.disabled=true;try{const r=await post('/api/register',{name,phone});usedToday=Number(r.used||0);totalDaily=Number(r.totalDaily||totalDaily);freeDaily=Number(r.freeDaily??freeDaily);taskDaily=Number(r.taskDaily??taskDaily);taskEnabled=r.taskEnabled!==false;taskLabel=String(r.taskLabel||taskLabel);remaining=Number(r.remaining||0);inviteUnlock=!!r.inviteUnlock;localStorage.setItem('phoAnnaPlayer',JSON.stringify({name,phone,date:todayKey()}));document.getElementById('register').classList.add('hidden');document.getElementById('game').classList.remove('hidden');updateTurn();document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){msg.textContent=e.message}b.disabled=false;};
+setInterval(refreshDailyConfig,15000);setInterval(refreshPlayerState,5000);
+async function post(path,data){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});let b={};try{b=await r.json()}catch(e){}if(!r.ok||b.ok===false)throw new Error(b.error||('Máy chủ trả về lỗi '+r.status));return b;}
+function updateTurn(){document.getElementById('turn').textContent='Bạn còn '+remaining+' lượt quay hôm nay';document.getElementById('spin').disabled=busy||remaining<=0; const need=(taskEnabled&&taskDaily>0&&usedToday>=freeDaily&&remaining>0&&!inviteUnlock); document.getElementById('unlockBox').classList.toggle('hidden',!need);}
+document.getElementById('continue').onclick=async()=>{const name=document.getElementById('name').value.trim();phone=document.getElementById('phone').value.replace(/\D/g,'');const msg=document.getElementById('msg');msg.textContent='';if(name.length<2||phone.length<9){msg.textContent='Vui lòng nhập họ tên và số điện thoại hợp lệ.';return}const b=document.getElementById('continue');b.disabled=true;try{const r=await post('/api/register',{name,phone});remaining=Number(r.remaining||0);inviteUnlock=!!r.inviteUnlock;localStorage.setItem('phoAnnaPlayer',JSON.stringify({name,phone,date:todayKey()}));document.getElementById('register').classList.add('hidden');document.getElementById('game').classList.remove('hidden');updateTurn();document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){msg.textContent=e.message}b.disabled=false;};
 document.getElementById('qrScanner').addEventListener('click',e=>{if(e.target.id==='qrScanner')stopQrScanner();});
 function showNotice(title,text){document.getElementById('noticeTitle').textContent=title;document.getElementById('noticeText').innerHTML=text;document.getElementById('noticeModal').classList.remove('hidden');}
 function closeNotice(){document.getElementById('noticeModal').classList.add('hidden');}
@@ -178,6 +177,7 @@ document.getElementById('spin').onclick=async()=>{
   busy=true;const btn=document.getElementById('spin');btn.disabled=true;btn.textContent='ĐANG QUAY...';try{const r=await post('/api/spin',{phone});const idx=Number(r.prizeIndex);if(!Number.isInteger(idx)||idx<0||idx>5)throw new Error('Dữ liệu phần thưởng không hợp lệ.');usedToday++;remaining=Math.max(0,Number(r.remaining||0));const slice=2*Math.PI/6;const target=-(idx*slice+slice/2);let delta=target-angle;while(delta<12*Math.PI)delta+=2*Math.PI;const start=angle,t0=performance.now(),duration=5200;function animate(t){const q=Math.min(1,(t-t0)/duration),e=1-Math.pow(1-q,4);angle=start+delta*e;wheel.style.transform='rotate('+angle+'rad)';if(q<1)requestAnimationFrame(animate);else{busy=false;btn.textContent='BẮT ĐẦU QUAY 🎡';updateTurn();showResult(r);}}requestAnimationFrame(animate);}catch(e){busy=false;btn.textContent='BẮT ĐẦU QUAY 🎡';updateTurn();showNotice('⚠️ Không thể thực hiện lượt quay',e.message);}};
 function showResult(r){const box=document.getElementById('result');box.classList.remove('hidden');box.classList.toggle('jackpot',!!r.special);document.getElementById('resultTitle').textContent=r.special?'🎉 JACKPOT – GIẢI ĐẶC BIỆT! 🎉':'🎉 Chúc mừng!';document.getElementById('won').textContent='Bạn đã quay trúng: '+r.prize;document.getElementById('code').textContent=r.rewardCode;document.getElementById('qr').src=r.qr;box.scrollIntoView({behavior:'smooth',block:'center'});}
 document.getElementById('back').onclick=()=>{document.getElementById('result').classList.add('hidden');document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});updateTurn();};
-window.addEventListener('load',restoreSession);
 </script>
 </body></html>
+
+<script>window.addEventListener('load',restoreSession);</script>
