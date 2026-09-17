@@ -2,15 +2,23 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8"><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PHỞ NHÀ ANNA – Quản lý</title>
+<title>PHỞ NHÀ ANNA – Quản lý v10.1</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#4b1e12,#8d3b20);font-family:Arial,sans-serif;color:#3d241b;padding:18px}.wrap{max-width:760px;margin:auto}.brand{text-align:center;color:#ffe7a0;font-size:30px;font-weight:900;margin:12px 0 20px}.card{background:#fff6e4;border:4px solid #e7b83e;border-radius:22px;padding:20px;margin:16px 0;box-shadow:0 8px 0 #542515}h2{margin:0 0 16px;color:#9b2d25}label{display:block;font-weight:700;margin:10px 0 6px}input,select{width:100%;padding:14px;border:2px solid #d9c5a3;border-radius:13px;font-size:17px;background:#fff}button{border:0;border-radius:14px;padding:14px 18px;background:linear-gradient(#ff4035,#df1717);color:white;font-size:17px;font-weight:900;box-shadow:0 4px 0 #8d281b;margin-top:12px;cursor:pointer}button:disabled{opacity:.5}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.msg{padding:12px;border-radius:12px;background:#fff0b9;margin-top:12px;white-space:pre-wrap}.hidden{display:none}.qr{text-align:center;margin-top:15px}.qr img{max-width:280px;width:100%;background:white;padding:12px;border-radius:15px}.token{font-size:20px;font-weight:900;word-break:break-all;text-align:center;margin:10px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px;border-bottom:1px solid #dbc9ac;text-align:left;white-space:nowrap}th{background:#f2d58c}.small{font-size:13px;color:#6d5145}.logout{float:right;background:#70402c;font-size:13px;padding:8px 12px}.ok{color:#137333;font-weight:700}.danger{color:#b3261e;font-weight:700}.dangerBtn{background:linear-gradient(#d92d20,#a91510);width:100%}.muted{color:#6d5145;font-size:13px}@media(max-width:560px){.row{grid-template-columns:1fr}.brand{font-size:24px}}
 
 #scanBtn{background:linear-gradient(#2f9d55,#167238);margin-left:8px}
-#scannerPanel{margin-top:14px;padding:14px;background:#fff;border:2px solid #d9c5a3;border-radius:15px}
-#reader{width:100%;max-width:420px;margin:0 auto}
+#scannerPanel{margin-top:14px;padding:14px;background:#fff;border:3px solid #e7b83e;border-radius:18px;box-shadow:0 5px 0 #8d5a32}
+#scannerPanel .scanner-title{font-size:19px;font-weight:900;color:#9b2d25;text-align:center;margin-bottom:8px}
+#reader{width:100%;max-width:420px;margin:0 auto;overflow:hidden;border-radius:14px;background:#111;min-height:260px}
+#reader video{width:100%!important;border-radius:12px}
 .scan-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 .scan-actions button{margin-top:8px}
+#scannerPanel .scan-close{background:linear-gradient(#70402c,#542515)}
+.dangerCard{border-color:#d96a48}
+.dangerCard h2{color:#9b2d25}
+.passwordCard{border-color:#d8a52d}
+.passwordCard h2{color:#9b2d25}
+.sectionNote{margin-top:-5px;margin-bottom:10px}
 @media(max-width:560px){#scanBtn{margin-left:0;width:100%}}
 .prize-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}.prize-grid input{font-weight:900}.prize-grid label{font-size:14px;line-height:1.25}.msg{line-height:1.45}@media(max-width:560px){.prize-grid{grid-template-columns:1fr}}
 </style>
@@ -21,6 +29,21 @@
 <div id="app" class="hidden">
 <button class="logout" id="logoutBtn">Đăng xuất</button>
 <section class="card"><h2>📊 Trạng thái chu kỳ</h2><div id="statusBox" class="msg">Đang tải...</div></section>
+<section class="card"><h2>🎁 Kiểm tra và đổi quà</h2>
+<label>Mã phần thưởng</label>
+<input id="rewardCode" placeholder="Ví dụ: ANNA-XXXXXXXX">
+<div class="scan-actions">
+  <button id="scanBtn" type="button">📷 QUÉT QR KHÁCH HÀNG</button>
+  <button id="redeemBtn" type="button">XÁC NHẬN ĐỔI QUÀ</button>
+</div>
+<div id="scannerPanel" class="hidden" role="dialog" aria-label="Quét mã QR đổi quà">
+  <div class="scanner-title">📷 CAMERA QUÉT QR ĐỔI QUÀ</div>
+  <p class="small" style="text-align:center"><b>Đưa mã QR phần thưởng vào chính khung camera bên dưới.</b><br>Trình duyệt sẽ hỏi quyền sử dụng camera nếu đây là lần đầu.</p>
+  <div id="reader"></div>
+  <div class="scan-actions"><button id="stopScanBtn" class="scan-close" type="button">ĐÓNG CAMERA</button></div>
+  <div id="scanMsg" class="msg hidden"></div>
+</div>
+<div id="redeemMsg" class="msg hidden"></div></section>
 <section class="card"><h2>🔓 Mở thêm lượt cho khách</h2><p class="small">Nhân viên chỉ cần nhập <b>1 số điện thoại</b>. Khi bấm mở khóa, hệ thống sẽ cộng đúng số <b>lượt làm nhiệm vụ</b> đang được cấu hình bên dưới.</p><label>Số điện thoại khách</label><input id="unlockPhone" inputmode="tel" placeholder="Nhập số điện thoại khách"><button id="makeBtn">MỞ KHÓA THÊM LƯỢT</button><div id="makeMsg" class="msg hidden"></div></section>
 <section class="card"><h2>⚙️ Cấu hình lượt chơi mỗi ngày</h2><p class="small"><b>Thay đổi tại đây sẽ áp dụng cho trang khách hàng và giới hạn hệ thống ngay.</b> Số lượt miễn phí là số lượt khách được quay không cần làm nhiệm vụ. Số lượt làm nhiệm vụ là số lượt được mở thêm sau khi quán xác nhận nhiệm vụ.</p><label>Tổng số lượt / ngày</label><input id="totalDaily" type="number" min="1" max="100" step="1" placeholder="4"><label>Số lượt miễn phí / ngày</label><input id="freeDaily" type="number" min="0" max="100" step="1" placeholder="2"><label>Số lượt làm nhiệm vụ</label><input id="taskDaily" type="number" min="0" max="100" step="1" placeholder="2"><label>Nhiệm vụ để thêm lượt</label><input id="taskLabel" type="text" maxlength="200" placeholder="Mời bạn cùng ăn tại PHỞ NHÀ ANNA"><div id="dailySummary" class="msg">Đang tính...</div><button id="saveDailyBtn">💾 LƯU CẤU HÌNH LƯỢT / NGÀY</button><div id="dailyMsg" class="msg hidden"></div></section>
 <section class="card"><h2>⚙️ Cấu hình chu kỳ & số lượng giải</h2><p class="small"><b>Nguyên tắc:</b> Số lượt/chu kỳ và số lượng từng giải là 2 cấu hình riêng. Nếu anh chỉ đổi số lượt/chu kỳ thì <b>số lượng giải giữ nguyên</b> và hệ thống tự chia đều các giải trong chu kỳ mới. Nếu anh tăng/giảm số lượng một giải, số lượng mới sẽ được chia đều theo toàn bộ chu kỳ.</p><label>Số lượt / chu kỳ</label><input id="cycleSize" type="number" min="100" max="1000000" step="1" placeholder="600">
@@ -34,23 +57,20 @@
 <div id="quotaSummary" class="msg">Giải còn lại: đang tính...</div>
 <p class="small">📌 Giải <b>Chúc Bạn May Mắn Lần Sau</b> không cần nhập số lượng; hệ thống tự lấy phần lượt còn lại sau khi trừ các giải anh đặt.</p>
 <button id="saveCycleBtn">💾 LƯU CẤU HÌNH</button><div id="cycleMsg" class="msg hidden"></div></section>
-<section class="card"><h2>🎁 Kiểm tra và đổi quà</h2>
-<label>Mã phần thưởng</label>
-<input id="rewardCode" placeholder="Ví dụ: ANNA-XXXXXXXX">
-<div class="scan-actions">
-  <button id="scanBtn" type="button">📷 QUÉT QR KHÁCH HÀNG</button>
-  <button id="redeemBtn" type="button">XÁC NHẬN ĐỔI QUÀ</button>
-</div>
-<div id="scannerPanel" class="hidden">
-  <p class="small"><b>Đưa mã QR phần thưởng của khách vào khung camera.</b></p>
-  <div id="reader"></div>
-  <div class="scan-actions"><button id="stopScanBtn" type="button">ĐÓNG CAMERA</button></div>
-  <div id="scanMsg" class="msg hidden"></div>
-</div>
-<div id="redeemMsg" class="msg hidden"></div></section>
+
+
+<section class="card dangerCard">
+  <h2>🗑️ Xóa dữ liệu</h2>
+  <p class="small">Dùng để xóa dữ liệu test hoặc xóa riêng một khách hàng. <b>Thao tác xóa không thể hoàn tác.</b></p>
+  <label>Xóa một khách hàng theo số điện thoại</label>
+  <input id="deletePhone" inputmode="tel" autocomplete="off" placeholder="Nhập số điện thoại đã đăng ký">
+  <button id="deleteOneBtn" class="dangerBtn" type="button">🗑️ XÓA KHÁCH HÀNG NÀY</button>
+  <button id="deleteAllBtn" class="dangerBtn" type="button">⚠️ XÓA TOÀN BỘ DỮ LIỆU KHÁCH HÀNG</button>
+  <div id="deleteMsg" class="msg hidden"></div>
+</section>
 <section class="card"><h2>📋 Lịch sử lượt quay</h2><button id="refreshBtn">TẢI LẠI DỮ LIỆU</button><div class="tablewrap"><table><thead><tr><th>ID</th><th>Khách hàng</th><th>SĐT</th><th>Ngày</th><th>Phần thưởng</th><th>Đổi quà</th></tr></thead><tbody id="playsBody"><tr><td colspan="6">Chưa tải dữ liệu</td></tr></tbody></table></div></section>
 </div></div>
-<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
 <script>
 const $=id=>document.getElementById(id);
 let adminToken=localStorage.getItem('annaAdminToken')||sessionStorage.getItem('annaAdminToken')||'';
@@ -58,40 +78,101 @@ function show(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}
 function hide(id){$(id).classList.add('hidden')}
 function setApp(on){$('app').classList.toggle('hidden',!on);$('loginCard').classList.toggle('hidden',on)}
 async function api(path,opt={}){
-  const options={...opt,credentials:'same-origin'};
-  options.headers={...(options.headers||{}),'Content-Type':'application/json'};
-  // Token header is retained only as a compatibility fallback; the primary session is the HttpOnly cookie.
+  const options={...opt,credentials:'same-origin',cache:'no-store'};
+  options.headers={...(options.headers||{}),'Content-Type':'application/json','Cache-Control':'no-cache'};
+  // Secure HttpOnly cookie is the primary session. Token is only a compatibility fallback.
   if(adminToken)options.headers['X-Admin-Token']=adminToken;
-  const r=await fetch(path,options);
-  let data={}; try{data=await r.json()}catch(e){data={ok:false,error:'Máy chủ trả về dữ liệu không hợp lệ.'}}
-  return { ...data, _status:r.status };
+  try{
+    const r=await fetch(path,options);
+    let data={}; try{data=await r.json()}catch(e){data={ok:false,error:'Máy chủ trả về dữ liệu không hợp lệ.'}}
+    return { ...data, _status:r.status };
+  }catch(e){
+    return {ok:false,_status:0,error:'Không kết nối được máy chủ. Vui lòng kiểm tra mạng và thử lại.'};
+  }
 }
 let booting=false;
 async function bootAdmin(){
-  if(booting)return; booting=true;
-  // Keep the authenticated shell visible during refresh. A transient network
-  // or D1 error must never look like a logout. We clear the saved session only
-  // after the server explicitly returns 401.
-  const hasSaved=!!adminToken;
-  if(hasSaved) setApp(true);
+  if(booting)return;
+  booting=true;
+  const hasSavedToken=!!adminToken;
+  // Never hide the admin shell just because a refresh request is temporarily slow.
+  if(hasSavedToken)setApp(true);
   try{
-    const r=await api('/api/admin/session');
-    if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();booting=false;return;}
-    if(r._status!==401 && hasSaved){setApp(true);booting=false;return;}
+    const r=await api('/api/admin/session',{method:'GET'});
+    if(r.ok){
+      setApp(true);
+      await Promise.all([loadPlays(),loadCycleConfig(),loadDailyConfig(),loadStatus()]);
+      booting=false; return;
+    }
+    // 401 means the server explicitly says the session is invalid.
+    if(r._status!==401){
+      if(hasSavedToken)setApp(true);
+      booting=false; return;
+    }
   }catch(e){
-    if(hasSaved){setApp(true);booting=false;return;}
+    if(hasSavedToken){setApp(true);booting=false;return;}
   }
-  if(hasSaved){
+  // Compatibility fallback for older deployments/tokens.
+  if(hasSavedToken){
     try{
-      const r=await api('/api/admin/status');
-      if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();booting=false;return;}
+      const r=await api('/api/admin/status',{method:'GET'});
+      if(r.ok){
+        setApp(true);
+        await Promise.all([loadPlays(),loadCycleConfig(),loadDailyConfig(),loadStatus()]);
+        booting=false; return;
+      }
       if(r._status!==401){setApp(true);booting=false;return;}
     }catch(e){setApp(true);booting=false;return;}
   }
-  adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false);booting=false;
+  adminToken='';
+  localStorage.removeItem('annaAdminToken');
+  sessionStorage.removeItem('annaAdminToken');
+  setApp(false);
+  booting=false;
 }
-$('loginBtn').onclick=async()=>{hide('loginMsg');try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('password').value})});if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');adminToken=r.token||'';localStorage.setItem('annaAdminToken',adminToken);sessionStorage.setItem('annaAdminToken',adminToken);setApp(true);$('password').value='';loadPlays();loadCycleConfig();loadDailyConfig();loadStatus()}catch(e){show('loginMsg',e.message)}};
-$('logoutBtn').onclick=async()=>{try{await api('/api/admin/logout',{method:'POST'})}catch(e){}adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false)};
+
+$('loginBtn').onclick=async()=>{
+  hide('loginMsg');
+  const password=$('password').value;
+  try{
+    const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password})});
+    if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');
+    adminToken=r.token||'';
+    if(adminToken){
+      localStorage.setItem('annaAdminToken',adminToken);
+      sessionStorage.setItem('annaAdminToken',adminToken);
+    }
+    setApp(true); $('password').value='';
+    await Promise.all([loadPlays(),loadCycleConfig(),loadDailyConfig(),loadStatus()]);
+  }catch(e){show('loginMsg',e.message)}
+};
+$('logoutBtn').onclick=async()=>{
+  try{await api('/api/admin/logout',{method:'POST'})}catch(e){}
+  adminToken='';
+  localStorage.removeItem('annaAdminToken');
+  sessionStorage.removeItem('annaAdminToken');
+  setApp(false);
+};
+$('changePasswordBtn').onclick=async()=>{
+  hide('passwordMsg');
+  const currentPassword=$('currentPassword').value;
+  const newPassword=$('newPassword').value;
+  const confirmPassword=$('confirmPassword').value;
+  if(!currentPassword){show('passwordMsg','Vui lòng nhập mật khẩu hiện tại.');return}
+  if(newPassword.length<8){show('passwordMsg','Mật khẩu mới phải có ít nhất 8 ký tự.');return}
+  if(newPassword!==confirmPassword){show('passwordMsg','Mật khẩu xác nhận không khớp.');return}
+  try{
+    const r=await api('/api/admin/change-password',{method:'POST',body:JSON.stringify({currentPassword,newPassword})});
+    if(!r.ok)throw Error(r.error||'Không đổi được mật khẩu');
+    adminToken=r.token||adminToken;
+    if(adminToken){
+      localStorage.setItem('annaAdminToken',adminToken);
+      sessionStorage.setItem('annaAdminToken',adminToken);
+    }
+    $('currentPassword').value='';$('newPassword').value='';$('confirmPassword').value='';
+    show('passwordMsg','✅ '+(r.message||'Đã đổi mật khẩu quản trị thành công.'));
+  }catch(e){show('passwordMsg',e.message)}
+};
 $('makeBtn').onclick=async()=>{hide('makeMsg');try{const r=await api('/api/admin/unlock',{method:'POST',body:JSON.stringify({phone:$('unlockPhone').value})});if(!r.ok)throw Error(r.error||'Không mở khóa được');show('makeMsg','✅ '+r.message+' '+r.customer.name+' ('+r.customer.phone+').');$('unlockPhone').value='';loadStatus();}catch(e){show('makeMsg',e.message)}};
 
 function renderDailySummary(){const total=Number($('totalDaily').value||0),free=Number($('freeDaily').value||0),task=Number($('taskDaily').value||0);const ok=total>=1&&free>=0&&free<=total&&task>=0&&task<=total-free;$('dailySummary').textContent=ok?'Tổng '+total.toLocaleString('vi-VN')+' lượt/ngày · Miễn phí '+free.toLocaleString('vi-VN')+' · Nhiệm vụ mở thêm '+task.toLocaleString('vi-VN')+' · Còn '+Math.max(0,total-free-task).toLocaleString('vi-VN')+' lượt không cần nhiệm vụ.':'⚠️ Cấu hình chưa hợp lệ: lượt miễn phí + lượt nhiệm vụ không được vượt tổng lượt/ngày.';return ok;}
@@ -108,38 +189,41 @@ $('redeemBtn').onclick=async()=>{hide('redeemMsg');try{const r=await api('/api/a
 
 let qrScanner=null;
 let scannerRunning=false;
+let scanBusy=false;
 
 function scanMessage(text){
   if(text){$('scanMsg').textContent=text;$('scanMsg').classList.remove('hidden');}
   else $('scanMsg').classList.add('hidden');
 }
 async function stopScanner(){
-  if(qrScanner && scannerRunning){
-    try{await qrScanner.stop();}catch(e){}
+  if(qrScanner){
+    try{if(scannerRunning)await qrScanner.stop();}catch(e){}
     try{await qrScanner.clear();}catch(e){}
   }
   scannerRunning=false;
   qrScanner=null;
   $('scannerPanel').classList.add('hidden');
+  scanBusy=false;
 }
 $('scanBtn').onclick=async()=>{
-  hide('redeemMsg');
-  scanMessage('');
+  hide('redeemMsg'); scanMessage('');
   $('scannerPanel').classList.remove('hidden');
   if(typeof Html5Qrcode==='undefined'){
     scanMessage('Không tải được trình quét QR. Vui lòng kiểm tra kết nối mạng.');
     return;
   }
+  if(scannerRunning)return;
   try{
     qrScanner=new Html5Qrcode('reader');
-    scannerRunning=true;
+    scannerRunning=true; scanBusy=false;
     await qrScanner.start(
-      {facingMode:'environment'},
+      {facingMode:{exact:'environment'}},
       {fps:10,qrbox:{width:250,height:250}},
       async(decodedText)=>{
+        if(scanBusy)return;
         const value=String(decodedText||'').trim();
         if(!value)return;
-        // Hỗ trợ cả mã thuần ANNA-... và đường dẫn có chứa mã.
+        scanBusy=true;
         const match=value.match(/ANNA-[A-Z0-9]+/i);
         $('rewardCode').value=match?match[0].toUpperCase():value;
         scanMessage('✅ Đã quét mã thành công. Anh bấm “XÁC NHẬN ĐỔI QUÀ”.');
@@ -148,9 +232,29 @@ $('scanBtn').onclick=async()=>{
       ()=>{}
     );
   }catch(e){
-    scanMessage('Không mở được camera. Anh hãy cấp quyền camera cho trình duyệt rồi thử lại.');
-    scannerRunning=false;
-    qrScanner=null;
+    // Some browsers reject the exact constraint; retry with the simpler facingMode.
+    try{
+      if(qrScanner){try{await qrScanner.clear()}catch(x){}}
+      qrScanner=new Html5Qrcode('reader');
+      scannerRunning=true; scanBusy=false;
+      await qrScanner.start(
+        {facingMode:'environment'},
+        {fps:10,qrbox:{width:250,height:250}},
+        async(decodedText)=>{
+          if(scanBusy)return;
+          const value=String(decodedText||'').trim(); if(!value)return;
+          scanBusy=true;
+          const match=value.match(/ANNA-[A-Z0-9]+/i);
+          $('rewardCode').value=match?match[0].toUpperCase():value;
+          scanMessage('✅ Đã quét mã thành công. Anh bấm “XÁC NHẬN ĐỔI QUÀ”.');
+          await stopScanner();
+        },
+        ()=>{}
+      );
+    }catch(e2){
+      scanMessage('Không mở được camera. Anh hãy bấm Cho phép camera cho trình duyệt, rồi thử lại.');
+      scannerRunning=false; qrScanner=null;
+    }
   }
 };
 $('stopScanBtn').onclick=stopScanner;
