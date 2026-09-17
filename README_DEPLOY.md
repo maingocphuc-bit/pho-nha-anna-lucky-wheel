@@ -1,4 +1,4 @@
-# PHỞ NHÀ ANNA – Lucky Wheel V10.1 ADMIN FIX
+# PHỞ NHÀ ANNA – Lucky Wheel V10.2 FINAL ADMIN/F5 FIX
 
 Bản này được sửa trực tiếp từ `PHO_NHA_ANNA_LUCKY_WHEEL_V10_FIXED_3_LOI.zip`.
 
@@ -22,3 +22,13 @@ Sau deploy test:
 - xóa 1 khách test;
 - xóa toàn bộ dữ liệu test nếu cần.
 
+
+
+## V10.2 critical fix
+The previous V10.1 Admin page referenced changePasswordBtn/currentPassword/newPassword/confirmPassword/passwordMsg in JavaScript but did not render those DOM elements. The null dereference stopped the script before bootAdmin(), making F5 return to login and making every Admin button appear dead. V10.2 adds the complete password-change card and a defensive JS error surface.
+
+### Verification
+- All Admin element IDs referenced by JavaScript exist in public/admin.html.
+- Admin JavaScript syntax checked with Node.
+- Worker JavaScript syntax checked with Node.
+- ZIP integrity checked.
