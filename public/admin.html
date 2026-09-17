@@ -1,65 +1,193 @@
 <!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8"><meta http-equiv="Cache-Control" content="no-store"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PHỞ NHÀ ANNA – Quản lý</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#4b1e12,#8d3b20);font-family:Arial,sans-serif;color:#3d241b;padding:18px}.wrap{max-width:760px;margin:auto}.brand{text-align:center;color:#ffe7a0;font-size:30px;font-weight:900;margin:12px 0 20px}.card{background:#fff6e4;border:4px solid #e7b83e;border-radius:22px;padding:20px;margin:16px 0;box-shadow:0 8px 0 #542515}h2{margin:0 0 16px;color:#9b2d25}label{display:block;font-weight:700;margin:10px 0 6px}input,select{width:100%;padding:14px;border:2px solid #d9c5a3;border-radius:13px;font-size:17px;background:#fff}button{border:0;border-radius:14px;padding:14px 18px;background:linear-gradient(#ff4035,#df1717);color:white;font-size:17px;font-weight:900;box-shadow:0 4px 0 #8d281b;margin-top:12px;cursor:pointer}button:disabled{opacity:.5}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.msg{padding:12px;border-radius:12px;background:#fff0b9;margin-top:12px;white-space:pre-wrap;line-height:1.45}.hidden{display:none!important}.qr{text-align:center;margin-top:15px}.qr img{max-width:280px;width:100%;background:white;padding:12px;border-radius:15px}.token{font-size:20px;font-weight:900;word-break:break-all;text-align:center;margin:10px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px;border-bottom:1px solid #dbc9ac;text-align:left;white-space:nowrap}th{background:#f2d58c}.small{font-size:13px;color:#6d5145}.logout{float:right;background:#70402c;font-size:13px;padding:8px 12px}.dangerBtn{background:linear-gradient(#d92d20,#a91510);width:100%}.secondary{background:linear-gradient(#805039,#5e3426)}.scanBtn{background:linear-gradient(#2f9d55,#167238)}.ok{color:#137333;font-weight:700}.danger{color:#b3261e;font-weight:700}.muted{color:#6d5145;font-size:13px}.prize-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}.prize-grid input{font-weight:900}.prize-grid label{font-size:14px;line-height:1.25}.modal-backdrop{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px}.modal{width:min(100%,500px);background:#fff6e4;border:4px solid #e7b83e;border-radius:22px;box-shadow:0 12px 35px #0009;padding:18px;text-align:center}.modal h2{margin-top:0}.modal video{width:100%;max-height:55vh;background:#111;border-radius:15px;object-fit:cover}.modal canvas{display:none}.modal .modal-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}.modal .modal-actions button{min-width:150px}.modal input[type=file]{padding:10px}.confirm-text{font-weight:700;line-height:1.5}.danger-input{border-color:#b3261e!important;text-align:center;font-weight:900;letter-spacing:1px}.status-good{color:#137333;font-weight:800}.status-bad{color:#a32020;font-weight:800}@media(max-width:560px){.row,.prize-grid{grid-template-columns:1fr}.brand{font-size:24px}.modal{padding:14px}}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#4b1e12,#8d3b20);font-family:Arial,sans-serif;color:#3d241b;padding:18px}.wrap{max-width:760px;margin:auto}.brand{text-align:center;color:#ffe7a0;font-size:30px;font-weight:900;margin:12px 0 20px}.card{background:#fff6e4;border:4px solid #e7b83e;border-radius:22px;padding:20px;margin:16px 0;box-shadow:0 8px 0 #542515}h2{margin:0 0 16px;color:#9b2d25}label{display:block;font-weight:700;margin:10px 0 6px}input,select{width:100%;padding:14px;border:2px solid #d9c5a3;border-radius:13px;font-size:17px;background:#fff}button{border:0;border-radius:14px;padding:14px 18px;background:linear-gradient(#ff4035,#df1717);color:white;font-size:17px;font-weight:900;box-shadow:0 4px 0 #8d281b;margin-top:12px;cursor:pointer}button:disabled{opacity:.5}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.msg{padding:12px;border-radius:12px;background:#fff0b9;margin-top:12px;white-space:pre-wrap}.hidden{display:none}.qr{text-align:center;margin-top:15px}.qr img{max-width:280px;width:100%;background:white;padding:12px;border-radius:15px}.token{font-size:20px;font-weight:900;word-break:break-all;text-align:center;margin:10px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px;border-bottom:1px solid #dbc9ac;text-align:left;white-space:nowrap}th{background:#f2d58c}.small{font-size:13px;color:#6d5145}.logout{float:right;background:#70402c;font-size:13px;padding:8px 12px}.ok{color:#137333;font-weight:700}.danger{color:#b3261e;font-weight:700}.dangerBtn{background:linear-gradient(#d92d20,#a91510);width:100%}.muted{color:#6d5145;font-size:13px}@media(max-width:560px){.row{grid-template-columns:1fr}.brand{font-size:24px}}
+
+#scanBtn{background:linear-gradient(#2f9d55,#167238);margin-left:8px}
+#scannerPanel{margin-top:14px;padding:14px;background:#fff;border:2px solid #d9c5a3;border-radius:15px}
+#reader{width:100%;max-width:420px;margin:0 auto}
+.scan-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.scan-actions button{margin-top:8px}
+@media(max-width:560px){#scanBtn{margin-left:0;width:100%}}
+.prize-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}.prize-grid input{font-weight:900}.prize-grid label{font-size:14px;line-height:1.25}.msg{line-height:1.45}@media(max-width:560px){.prize-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body><div class="wrap">
 <div class="brand">🍜 PHỞ NHÀ ANNA<br>TRANG QUẢN LÝ CHỦ QUÁN</div>
-<section id="loginCard" class="card"><h2>🔐 Đăng nhập quản lý</h2><label>Mật khẩu quản lý</label><input id="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu quản lý"><button id="loginBtn">ĐĂNG NHẬP</button><div id="loginMsg" class="msg hidden"></div><div id="setupBox" class="hidden" style="margin-top:14px;padding:14px;border:2px dashed #c6a46a;border-radius:14px;background:#fff8df"><b>⚙️ Khởi tạo tài khoản lần đầu</b><p class="small">Chỉ dùng khi hệ thống chưa có tài khoản quản trị. Mật khẩu phải từ 8 ký tự.</p><input id="setupPassword" type="password" autocomplete="new-password" placeholder="Mật khẩu quản trị mới"><input id="setupPassword2" type="password" autocomplete="new-password" placeholder="Nhập lại mật khẩu" style="margin-top:8px"><button id="setupBtn" type="button">TẠO TÀI KHOẢN QUẢN TRỊ</button><div id="setupMsg" class="msg hidden"></div></div></section>
+<section id="loginCard" class="card"><h2>🔐 Đăng nhập quản lý</h2><label>Mật khẩu quản lý</label><input id="password" type="password" placeholder="Nhập mật khẩu ADMIN_PASSWORD"><button id="loginBtn">ĐĂNG NHẬP</button><div id="loginMsg" class="msg hidden"></div></section>
 <div id="app" class="hidden">
 <button class="logout" id="logoutBtn">Đăng xuất</button>
 <section class="card"><h2>📊 Trạng thái chu kỳ</h2><div id="statusBox" class="msg">Đang tải...</div></section>
-<section class="card"><h2>🔓 Mở thêm lượt cho khách</h2><p class="small">Nhân viên chỉ cần nhập <b>1 số điện thoại</b>. Hệ thống mở đúng số lượt nhiệm vụ đang cấu hình và không cộng trùng trong cùng ngày.</p><label>Số điện thoại khách</label><input id="unlockPhone" inputmode="tel" placeholder="Nhập số điện thoại khách"><button id="makeBtn">MỞ KHÓA THÊM LƯỢT</button><div id="makeMsg" class="msg hidden"></div></section>
-<section class="card"><h2>🎁 Kiểm tra và đổi quà</h2><label>Mã phần thưởng</label><input id="rewardCode" autocomplete="off" placeholder="Ví dụ: ANNA-XXXXXXXX"><div class="row"><button id="scanBtn" class="scanBtn" type="button">📷 QUÉT QR KHÁCH HÀNG</button><button id="redeemBtn" type="button">XÁC NHẬN ĐỔI QUÀ</button></div><div id="redeemMsg" class="msg hidden"></div></section>
-<section class="card"><h2>⚙️ Cấu hình lượt chơi mỗi ngày</h2><p class="small"><b>Thay đổi tại đây áp dụng ngay cho trang khách và API.</b> Lượt nhiệm vụ phải bằng tổng lượt trừ lượt miễn phí.</p><label>Tổng số lượt / ngày</label><input id="totalDaily" type="number" min="1" max="100" step="1"><label>Số lượt miễn phí / ngày</label><input id="freeDaily" type="number" min="0" max="100" step="1"><label>Số lượt làm nhiệm vụ</label><input id="taskDaily" type="number" min="0" max="100" step="1"><label>Nhiệm vụ để thêm lượt</label><input id="taskLabel" type="text" maxlength="200"><div id="dailySummary" class="msg">Đang tính...</div><button id="saveDailyBtn">💾 LƯU CẤU HÌNH LƯỢT / NGÀY</button><div id="dailyMsg" class="msg hidden"></div></section>
-<section class="card"><h2>⚙️ Cấu hình chu kỳ & số lượng giải</h2><p class="small">Số lượt/chu kỳ và số lượng từng giải là 2 cấu hình riêng. Thay đổi giữa chu kỳ sẽ áp dụng cho chu kỳ kế tiếp.</p><label>Số lượt / chu kỳ</label><input id="cycleSize" type="number" min="100" max="1000000" step="1">
-<div class="prize-grid"><div><label>🏆 2 tô phở / 1 tuần</label><input id="quota0" type="number" min="0" step="1"></div><div><label>🍜 Phở miễn phí 50K</label><input id="quota1" type="number" min="0" step="1"></div><div><label>🏷️ Giải 5K</label><input id="quota2" type="number" min="0" step="1"></div><div><label>🥛 Chai sữa tươi</label><input id="quota3" type="number" min="0" step="1"></div><div><label>🍵 Trà gừng</label><input id="quota4" type="number" min="0" step="1"></div></div>
-<div id="quotaSummary" class="msg">Giải còn lại: đang tính...</div><button id="saveCycleBtn">💾 LƯU CẤU HÌNH</button><div id="cycleMsg" class="msg hidden"></div></section>
-<section class="card"><h2>🔑 Đổi mật khẩu quản trị</h2><label>Mật khẩu mới</label><input id="newPassword" type="password" autocomplete="new-password" placeholder="Ít nhất 8 ký tự"><label>Nhập lại mật khẩu mới</label><input id="newPassword2" type="password" autocomplete="new-password" placeholder="Nhập lại mật khẩu mới"><button id="changePasswordBtn">🔑 ĐỔI MẬT KHẨU</button><div id="passwordMsg" class="msg hidden"></div></section>
-<section class="card"><h2>🗑️ Xóa dữ liệu</h2><p class="small">Dùng để xóa dữ liệu test hoặc xóa riêng một khách hàng. Hành động xóa không thể hoàn tác.</p><label>Xóa một khách hàng theo SĐT</label><input id="deletePhone" inputmode="tel" placeholder="Nhập số điện thoại đã đăng ký"><button id="deleteOneBtn" class="dangerBtn">🗑️ XÓA KHÁCH HÀNG NÀY</button><button id="deleteAllBtn" class="dangerBtn">⚠️ XÓA TOÀN BỘ DỮ LIỆU KHÁCH HÀNG</button><div id="deleteMsg" class="msg hidden"></div></section>
+<section class="card"><h2>🔓 Mở thêm lượt cho khách</h2><p class="small">Nhân viên chỉ cần nhập <b>1 số điện thoại</b>. Khi bấm mở khóa, hệ thống sẽ cộng đúng số <b>lượt làm nhiệm vụ</b> đang được cấu hình bên dưới.</p><label>Số điện thoại khách</label><input id="unlockPhone" inputmode="tel" placeholder="Nhập số điện thoại khách"><button id="makeBtn">MỞ KHÓA THÊM LƯỢT</button><div id="makeMsg" class="msg hidden"></div></section>
+<section class="card"><h2>⚙️ Cấu hình lượt chơi mỗi ngày</h2><p class="small"><b>Thay đổi tại đây sẽ áp dụng cho trang khách hàng và giới hạn hệ thống ngay.</b> Số lượt miễn phí là số lượt khách được quay không cần làm nhiệm vụ. Số lượt làm nhiệm vụ là số lượt được mở thêm sau khi quán xác nhận nhiệm vụ.</p><label>Tổng số lượt / ngày</label><input id="totalDaily" type="number" min="1" max="100" step="1" placeholder="4"><label>Số lượt miễn phí / ngày</label><input id="freeDaily" type="number" min="0" max="100" step="1" placeholder="2"><label>Số lượt làm nhiệm vụ</label><input id="taskDaily" type="number" min="0" max="100" step="1" placeholder="2"><label>Nhiệm vụ để thêm lượt</label><input id="taskLabel" type="text" maxlength="200" placeholder="Mời bạn cùng ăn tại PHỞ NHÀ ANNA"><div id="dailySummary" class="msg">Đang tính...</div><button id="saveDailyBtn">💾 LƯU CẤU HÌNH LƯỢT / NGÀY</button><div id="dailyMsg" class="msg hidden"></div></section>
+<section class="card"><h2>⚙️ Cấu hình chu kỳ & số lượng giải</h2><p class="small"><b>Nguyên tắc:</b> Số lượt/chu kỳ và số lượng từng giải là 2 cấu hình riêng. Nếu anh chỉ đổi số lượt/chu kỳ thì <b>số lượng giải giữ nguyên</b> và hệ thống tự chia đều các giải trong chu kỳ mới. Nếu anh tăng/giảm số lượng một giải, số lượng mới sẽ được chia đều theo toàn bộ chu kỳ.</p><label>Số lượt / chu kỳ</label><input id="cycleSize" type="number" min="100" max="1000000" step="1" placeholder="600">
+<div class="prize-grid">
+  <div><label>🏆 2 tô phở / 1 tuần</label><input id="quota0" type="number" min="0" step="1" placeholder="1"></div>
+  <div><label>🍜 Phở miễn phí 50K</label><input id="quota1" type="number" min="0" step="1" placeholder="1"></div>
+  <div><label>🏷️ Giải 5K</label><input id="quota2" type="number" min="0" step="1" placeholder="6"></div>
+  <div><label>🥛 Chai sữa tươi</label><input id="quota3" type="number" min="0" step="1" placeholder="4"></div>
+  <div><label>🍵 Trà gừng</label><input id="quota4" type="number" min="0" step="1" placeholder="25"></div>
+</div>
+<div id="quotaSummary" class="msg">Giải còn lại: đang tính...</div>
+<p class="small">📌 Giải <b>Chúc Bạn May Mắn Lần Sau</b> không cần nhập số lượng; hệ thống tự lấy phần lượt còn lại sau khi trừ các giải anh đặt.</p>
+<button id="saveCycleBtn">💾 LƯU CẤU HÌNH</button><div id="cycleMsg" class="msg hidden"></div></section>
+<section class="card"><h2>🎁 Kiểm tra và đổi quà</h2>
+<label>Mã phần thưởng</label>
+<input id="rewardCode" placeholder="Ví dụ: ANNA-XXXXXXXX">
+<div class="scan-actions">
+  <button id="scanBtn" type="button">📷 QUÉT QR KHÁCH HÀNG</button>
+  <button id="redeemBtn" type="button">XÁC NHẬN ĐỔI QUÀ</button>
+</div>
+<div id="scannerPanel" class="hidden">
+  <p class="small"><b>Đưa mã QR phần thưởng của khách vào khung camera.</b></p>
+  <div id="reader"></div>
+  <div class="scan-actions"><button id="stopScanBtn" type="button">ĐÓNG CAMERA</button></div>
+  <div id="scanMsg" class="msg hidden"></div>
+</div>
+<div id="redeemMsg" class="msg hidden"></div></section>
 <section class="card"><h2>📋 Lịch sử lượt quay</h2><button id="refreshBtn">TẢI LẠI DỮ LIỆU</button><div class="tablewrap"><table><thead><tr><th>ID</th><th>Khách hàng</th><th>SĐT</th><th>Ngày</th><th>Phần thưởng</th><th>Đổi quà</th></tr></thead><tbody id="playsBody"><tr><td colspan="6">Chưa tải dữ liệu</td></tr></tbody></table></div></section>
 </div></div>
-
-<div id="scanModal" class="modal-backdrop hidden"><div class="modal"><h2>📷 Quét mã QR đổi quà</h2><p class="small">Cho phép camera, sau đó đưa mã QR của khách vào giữa khung.</p><video id="cameraVideo" playsinline autoplay muted></video><canvas id="cameraCanvas"></canvas><div id="scanStatus" class="msg hidden"></div><label class="small">Nếu camera không đọc được, có thể chọn ảnh QR</label><input id="qrImage" type="file" accept="image/*" capture="environment"><div class="modal-actions"><button id="stopScanBtn" class="secondary" type="button">ĐÓNG CAMERA</button></div></div></div>
-<div id="confirmModal" class="modal-backdrop hidden"><div class="modal"><h2 id="confirmTitle">Xác nhận</h2><p id="confirmText" class="confirm-text"></p><div class="modal-actions"><button id="confirmNo" class="secondary" type="button">HỦY</button><button id="confirmYes" type="button">XÁC NHẬN</button></div></div></div>
-<div id="deleteAllModal" class="modal-backdrop hidden"><div class="modal"><h2>⚠️ Xóa toàn bộ dữ liệu</h2><p class="confirm-text">CẢNH BÁO: Thao tác này sẽ xóa tất cả khách hàng, lượt quay, mã mở khóa và lịch sử liên quan. Không thể hoàn tác.</p><p>Để xác nhận, nhập chính xác:</p><p><b>XOA TAT CA</b></p><input id="deleteAllConfirm" class="danger-input" autocomplete="off" placeholder="Nhập XOA TAT CA"><div class="modal-actions"><button id="deleteAllNo" class="secondary" type="button">HỦY</button><button id="deleteAllYes" class="dangerBtn" type="button">XÓA TẤT CẢ</button></div><div id="deleteAllModalMsg" class="msg hidden"></div></div></div>
-
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script>
-const $=id=>document.getElementById(id);let adminToken=localStorage.getItem('annaAdminToken')||sessionStorage.getItem('annaAdminToken')||'';let booting=false;
-function show(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}function hide(id){$(id).classList.add('hidden')}function setApp(on){$('app').classList.toggle('hidden',!on);$('loginCard').classList.toggle('hidden',on)}
-async function api(path,opt={}){const options={...opt,credentials:'same-origin'};options.headers={...(options.headers||{}),'Content-Type':'application/json'};if(adminToken)options.headers['X-Admin-Token']=adminToken;let r;try{r=await fetch(path,options)}catch(e){throw new Error('Không kết nối được máy chủ. Kiểm tra mạng hoặc URL Worker.')}let data={};try{data=await r.json()}catch(e){data={ok:false,error:'Máy chủ trả về dữ liệu không hợp lệ.'}}return {...data,_status:r.status}}
-async function loadAll(){await Promise.allSettled([loadPlays(),loadCycleConfig(),loadDailyConfig(),loadStatus()])}
-async function bootAdmin(){if(booting)return;booting=true;if(adminToken)setApp(true);try{const r=await api('/api/admin/session');if(r.ok){setApp(true);await loadAll();booting=false;return}if(r._status!==401&&adminToken){setApp(true);booting=false;return}}catch(e){if(adminToken){setApp(true);booting=false;return}}adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false);if(!$('loginMsg').textContent)show('loginMsg','Phiên quản trị chưa được xác thực. Vui lòng đăng nhập.');booting=false}
-$('loginBtn').onclick=login;$('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});async function login(){hide('loginMsg');hide('setupBox');const p=$('password').value;if(!p){show('loginMsg','Vui lòng nhập mật khẩu quản lý.');return}$('loginBtn').disabled=true;try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:p})});if(!r.ok){if(r._status===503)$('setupBox').classList.remove('hidden');throw Error(r.error||'Đăng nhập thất bại.');}adminToken=r.token||'';if(adminToken){localStorage.setItem('annaAdminToken',adminToken);sessionStorage.setItem('annaAdminToken',adminToken)}$('password').value='';setApp(true);await loadAll()}catch(e){show('loginMsg',e.message)}finally{$('loginBtn').disabled=false}}
-$('setupBtn').onclick=async()=>{hide('setupMsg');const p=$('setupPassword').value,p2=$('setupPassword2').value;if(p.length<8){show('setupMsg','Mật khẩu phải có ít nhất 8 ký tự.');return}if(p!==p2){show('setupMsg','Hai mật khẩu không giống nhau.');return}$('setupBtn').disabled=true;try{const r=await api('/api/admin/setup',{method:'POST',body:JSON.stringify({password:p})});if(!r.ok)throw Error(r.error);adminToken=r.token||'';if(adminToken){localStorage.setItem('annaAdminToken',adminToken);sessionStorage.setItem('annaAdminToken',adminToken)}$('setupPassword').value='';$('setupPassword2').value='';setApp(true);await loadAll()}catch(e){show('setupMsg',e.message)}finally{$('setupBtn').disabled=false}};
+const $=id=>document.getElementById(id);
+let adminToken=localStorage.getItem('annaAdminToken')||sessionStorage.getItem('annaAdminToken')||'';
+function show(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}
+function hide(id){$(id).classList.add('hidden')}
+function setApp(on){$('app').classList.toggle('hidden',!on);$('loginCard').classList.toggle('hidden',on)}
+async function api(path,opt={}){
+  const options={...opt,credentials:'same-origin'};
+  options.headers={...(options.headers||{}),'Content-Type':'application/json'};
+  // Token header is retained only as a compatibility fallback; the primary session is the HttpOnly cookie.
+  if(adminToken)options.headers['X-Admin-Token']=adminToken;
+  const r=await fetch(path,options);
+  let data={}; try{data=await r.json()}catch(e){data={ok:false,error:'Máy chủ trả về dữ liệu không hợp lệ.'}}
+  return { ...data, _status:r.status };
+}
+let booting=false;
+async function bootAdmin(){
+  if(booting)return; booting=true;
+  // Keep the authenticated shell visible during refresh. A transient network
+  // or D1 error must never look like a logout. We clear the saved session only
+  // after the server explicitly returns 401.
+  const hasSaved=!!adminToken;
+  if(hasSaved) setApp(true);
+  try{
+    const r=await api('/api/admin/session');
+    if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();booting=false;return;}
+    if(r._status!==401 && hasSaved){setApp(true);booting=false;return;}
+  }catch(e){
+    if(hasSaved){setApp(true);booting=false;return;}
+  }
+  if(hasSaved){
+    try{
+      const r=await api('/api/admin/status');
+      if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();booting=false;return;}
+      if(r._status!==401){setApp(true);booting=false;return;}
+    }catch(e){setApp(true);booting=false;return;}
+  }
+  adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false);booting=false;
+}
+$('loginBtn').onclick=async()=>{hide('loginMsg');try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('password').value})});if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');adminToken=r.token||'';localStorage.setItem('annaAdminToken',adminToken);sessionStorage.setItem('annaAdminToken',adminToken);setApp(true);$('password').value='';loadPlays();loadCycleConfig();loadDailyConfig();loadStatus()}catch(e){show('loginMsg',e.message)}};
 $('logoutBtn').onclick=async()=>{try{await api('/api/admin/logout',{method:'POST'})}catch(e){}adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false)};
-$('makeBtn').onclick=async()=>{hide('makeMsg');const phone=$('unlockPhone').value.replace(/\D/g,'');if(phone.length<9||phone.length>12){show('makeMsg','Số điện thoại không hợp lệ.');return}$('makeBtn').disabled=true;try{const r=await api('/api/admin/unlock',{method:'POST',body:JSON.stringify({phone})});if(!r.ok)throw Error(r.error||'Không mở khóa được.');show('makeMsg','✅ '+r.message+' '+(r.customer?`(${r.customer.name} – ${r.customer.phone})`:''));$('unlockPhone').value='';await loadStatus()}catch(e){show('makeMsg',e.message)}finally{$('makeBtn').disabled=false}};
-function renderDailySummary(){const total=Number($('totalDaily').value||0),free=Number($('freeDaily').value||0),task=Number($('taskDaily').value||0);const ok=Number.isInteger(total)&&total>=1&&free>=0&&free<=total&&task===total-free;$('dailySummary').textContent=ok?`Tổng ${total} lượt/ngày · Miễn phí ${free} · Nhiệm vụ mở thêm ${task} · Tổng cộng đúng ${total}.`:'⚠️ Cấu hình chưa hợp lệ: lượt làm nhiệm vụ phải = tổng lượt/ngày − lượt miễn phí.';return ok}
-async function loadDailyConfig(){try{const r=await api('/api/admin/daily-config');if(!r.ok)throw Error(r.error);$('totalDaily').value=r.totalDaily;$('freeDaily').value=r.freeDaily;$('taskDaily').value=r.taskDaily;$('taskLabel').value=r.taskLabel||'';renderDailySummary()}catch(e){show('dailyMsg',e.message)}}['totalDaily','freeDaily','taskDaily'].forEach(id=>$(id).addEventListener('input',renderDailySummary));
-$('saveDailyBtn').onclick=async()=>{hide('dailyMsg');if(!renderDailySummary())return;try{const r=await api('/api/admin/daily-config',{method:'POST',body:JSON.stringify({totalDaily:Number($('totalDaily').value),freeDaily:Number($('freeDaily').value),taskDaily:Number($('taskDaily').value),taskEnabled:true,taskLabel:$('taskLabel').value})});if(!r.ok)throw Error(r.error);show('dailyMsg','✅ '+r.message);await loadStatus()}catch(e){show('dailyMsg',e.message)}};
-async function loadStatus(){try{const r=await api('/api/admin/status');if(!r.ok)throw Error(r.error||'Không tải được trạng thái.');let t=`Chu kỳ ${r.cycleNo}: ${Number(r.currentPosition).toLocaleString('vi-VN')}/${Number(r.cycleSize).toLocaleString('vi-VN')} lượt\nTổng lượt đã quay: ${Number(r.totalPlays).toLocaleString('vi-VN')}`;if(r.daily)t+=`\nLượt/ngày: ${r.daily.totalDaily} (miễn phí ${r.daily.freeDaily}, nhiệm vụ ${r.daily.taskDaily})`;if(r.pendingCycleSize)t+=`\nChu kỳ kế tiếp: ${Number(r.pendingCycleSize).toLocaleString('vi-VN')} lượt`;$('statusBox').textContent=t}catch(e){$('statusBox').textContent=e.message}}
-function renderQuotaSummary(size,q){const used=[0,1,2,3,4].reduce((s,i)=>s+Number(q?.[i]||0),0);$('quotaSummary').textContent=`Tổng giải có quà: ${used.toLocaleString('vi-VN')} · Chúc Bạn May Mắn Lần Sau: ${Math.max(0,Number(size||0)-used).toLocaleString('vi-VN')}`}
-async function loadCycleConfig(){try{const r=await api('/api/admin/cycle-config');if(!r.ok)throw Error(r.error);$('cycleSize').value=r.cycleSize;[0,1,2,3,4].forEach(i=>$('quota'+i).value=Number(r.quotas?.[i]??0));renderQuotaSummary(r.cycleSize,r.quotas);show('cycleMsg',`Hiện tại: ${Number(r.currentPosition).toLocaleString('vi-VN')}/${Number(r.cycleSize).toLocaleString('vi-VN')} lượt${r.pendingCycleSize?` · Chu kỳ kế tiếp: ${Number(r.pendingCycleSize).toLocaleString('vi-VN')} lượt`:''}`)}catch(e){show('cycleMsg',e.message)}}
-['cycleSize','quota0','quota1','quota2','quota3','quota4'].forEach(id=>$(id).addEventListener('input',()=>renderQuotaSummary(Number($('cycleSize').value),{0:Number($('quota0').value||0),1:Number($('quota1').value||0),2:Number($('quota2').value||0),3:Number($('quota3').value||0),4:Number($('quota4').value||0)})));
-$('saveCycleBtn').onclick=async()=>{hide('cycleMsg');try{const r=await api('/api/admin/cycle-config',{method:'POST',body:JSON.stringify({cycleSize:Number($('cycleSize').value),quota0:Number($('quota0').value),quota1:Number($('quota1').value),quota2:Number($('quota2').value),quota3:Number($('quota3').value),quota4:Number($('quota4').value)})});if(!r.ok)throw Error(r.error);show('cycleMsg','✅ '+r.message);await loadCycleConfig();await loadStatus()}catch(e){show('cycleMsg',e.message)}};
-$('changePasswordBtn').onclick=async()=>{hide('passwordMsg');const p=$('newPassword').value,p2=$('newPassword2').value;if(p.length<8){show('passwordMsg','Mật khẩu mới phải có ít nhất 8 ký tự.');return}if(p!==p2){show('passwordMsg','Hai mật khẩu không giống nhau.');return}$('changePasswordBtn').disabled=true;try{const r=await api('/api/admin/change-password',{method:'POST',body:JSON.stringify({newPassword:p})});if(!r.ok)throw Error(r.error);if(r.token){adminToken=r.token;localStorage.setItem('annaAdminToken',adminToken);sessionStorage.setItem('annaAdminToken',adminToken)}$('newPassword').value='';$('newPassword2').value='';show('passwordMsg','✅ '+r.message)}catch(e){show('passwordMsg',e.message)}finally{$('changePasswordBtn').disabled=false}};
-$('redeemBtn').onclick=async()=>{hide('redeemMsg');const code=$('rewardCode').value.trim();if(!code){show('redeemMsg','Vui lòng nhập hoặc quét mã phần thưởng.');return}try{const r=await api('/api/admin/redeem',{method:'POST',body:JSON.stringify({code})});if(!r.ok)throw Error(r.error);show('redeemMsg',`✅ Đổi quà thành công. Còn ${r.remainingRedemptions} lần đổi cho mã này.`);await loadPlays()}catch(e){show('redeemMsg',e.message)}};
-async function loadPlays(){try{const r=await api('/api/admin/plays');if(!r.ok)throw Error(r.error);$('playsBody').innerHTML=(r.rows||[]).map(x=>`<tr><td>${x.id}</td><td>${esc(x.name)}</td><td>${esc(x.phone)}</td><td>${esc(x.play_date)}</td><td>${esc(x.prize_name)}</td><td>${x.redeemed?'Đã đổi':'Chưa đổi'}</td></tr>`).join('')||'<tr><td colspan="6">Chưa có dữ liệu</td></tr>'}catch(e){$('playsBody').innerHTML=`<tr><td colspan="6">${esc(e.message)}</td></tr>`}}function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}$('refreshBtn').onclick=loadPlays;
+$('makeBtn').onclick=async()=>{hide('makeMsg');try{const r=await api('/api/admin/unlock',{method:'POST',body:JSON.stringify({phone:$('unlockPhone').value})});if(!r.ok)throw Error(r.error||'Không mở khóa được');show('makeMsg','✅ '+r.message+' '+r.customer.name+' ('+r.customer.phone+').');$('unlockPhone').value='';loadStatus();}catch(e){show('makeMsg',e.message)}};
 
-let mediaStream=null,scanTimer=null,barcodeDetector=null,scannerBusy=false;
-function scanStatus(t){if(t){$('scanStatus').textContent=t;$('scanStatus').classList.remove('hidden')}else $('scanStatus').classList.add('hidden')}
-function extractRewardCode(value){const m=String(value||'').toUpperCase().match(/ANNA-[A-Z0-9]+/);return m?m[0]:String(value||'').trim()}
-async function stopCamera(){if(scanTimer){clearInterval(scanTimer);scanTimer=null}if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null}$('cameraVideo').srcObject=null;barcodeDetector=null;scannerBusy=false;$('scanModal').classList.add('hidden')}
-async function startNativeScanner(){if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Trình duyệt không hỗ trợ camera.');mediaStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});$('cameraVideo').srcObject=mediaStream;await $('cameraVideo').play();if('BarcodeDetector' in window){try{barcodeDetector=new BarcodeDetector({formats:['qr_code']})}catch(e){barcodeDetector=null}}if(!barcodeDetector){scanStatus('📷 Camera đã mở. Trình duyệt này chưa hỗ trợ đọc QR trực tiếp; Anh có thể chụp/chọn ảnh QR bên dưới để quét.');return}const canvas=$('cameraCanvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});scanTimer=setInterval(async()=>{if(scannerBusy||!mediaStream||$('cameraVideo').readyState<2)return;scannerBusy=true;try{if($('cameraVideo').videoWidth){canvas.width=$('cameraVideo').videoWidth;canvas.height=$('cameraVideo').videoHeight;ctx.drawImage($('cameraVideo'),0,0,canvas.width,canvas.height);const codes=await barcodeDetector.detect(canvas);if(codes&&codes.length){$('rewardCode').value=extractRewardCode(codes[0].rawValue);scanStatus('✅ Đã quét mã. Camera sẽ đóng.');await stopCamera()}}}catch(e){}finally{scannerBusy=false}},350)}
-$('scanBtn').onclick=async()=>{hide('redeemMsg');scanStatus('');$('scanModal').classList.remove('hidden');try{await startNativeScanner()}catch(e){if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null}$('cameraVideo').srcObject=null;scanStatus('⚠️ '+e.message+' Nếu camera bị chặn, hãy cấp quyền Camera cho Chrome rồi thử lại; hoặc chọn ảnh QR bên dưới.')}};$('stopScanBtn').onclick=stopCamera;$('scanModal').addEventListener('click',e=>{if(e.target.id==='scanModal')stopCamera()});
-$('qrImage').onchange=async e=>{const f=e.target.files?.[0];if(!f)return;try{if(!('BarcodeDetector' in window))throw new Error('Trình duyệt không hỗ trợ đọc QR từ ảnh.');const d=new BarcodeDetector({formats:['qr_code']});const bmp=await createImageBitmap(f);const codes=await d.detect(bmp);bmp.close();if(!codes.length)throw new Error('Không tìm thấy mã QR trong ảnh.');$('rewardCode').value=extractRewardCode(codes[0].rawValue);scanStatus('✅ Đã đọc QR từ ảnh.');setTimeout(stopCamera,500)}catch(e){scanStatus('⚠️ '+e.message)}};
+function renderDailySummary(){const total=Number($('totalDaily').value||0),free=Number($('freeDaily').value||0),task=Number($('taskDaily').value||0);const ok=total>=1&&free>=0&&free<=total&&task>=0&&task<=total-free;$('dailySummary').textContent=ok?'Tổng '+total.toLocaleString('vi-VN')+' lượt/ngày · Miễn phí '+free.toLocaleString('vi-VN')+' · Nhiệm vụ mở thêm '+task.toLocaleString('vi-VN')+' · Còn '+Math.max(0,total-free-task).toLocaleString('vi-VN')+' lượt không cần nhiệm vụ.':'⚠️ Cấu hình chưa hợp lệ: lượt miễn phí + lượt nhiệm vụ không được vượt tổng lượt/ngày.';return ok;}
+async function loadDailyConfig(){try{const r=await api('/api/admin/daily-config');if(!r.ok)throw Error(r.error||'Không tải được cấu hình lượt/ngày');$('totalDaily').value=r.totalDaily;$('freeDaily').value=r.freeDaily;$('taskDaily').value=r.taskDaily;$('taskLabel').value=r.taskLabel||'';renderDailySummary();}catch(e){show('dailyMsg',e.message)}}
+for(const id of ['totalDaily','freeDaily','taskDaily'])$(id).addEventListener('input',renderDailySummary);
+$('saveDailyBtn').onclick=async()=>{hide('dailyMsg');if(!renderDailySummary())return;try{const r=await api('/api/admin/daily-config',{method:'POST',body:JSON.stringify({totalDaily:Number($('totalDaily').value),freeDaily:Number($('freeDaily').value),taskDaily:Number($('taskDaily').value),taskEnabled:true,taskLabel:$('taskLabel').value})});if(!r.ok)throw Error(r.error||'Không lưu được cấu hình');show('dailyMsg','✅ '+r.message);loadStatus();}catch(e){show('dailyMsg',e.message)}};
 
-let confirmAction=null;function openConfirm(title,text,fn){$('confirmTitle').textContent=title;$('confirmText').textContent=text;confirmAction=fn;$('confirmModal').classList.remove('hidden')}function closeConfirm(){confirmAction=null;$('confirmModal').classList.add('hidden')}$('confirmNo').onclick=closeConfirm;$('confirmYes').onclick=async()=>{const fn=confirmAction;closeConfirm();if(fn)await fn()};
-$('deleteOneBtn').onclick=()=>{hide('deleteMsg');const phone=$('deletePhone').value.replace(/\D/g,'');if(phone.length<9||phone.length>12){show('deleteMsg','Số điện thoại không hợp lệ.');return}openConfirm('🗑️ Xóa khách hàng','Anh có chắc chắn muốn xóa khách hàng này cùng toàn bộ lượt quay, mã mở khóa và dữ liệu liên quan?',async()=>{try{const r=await api('/api/admin/delete-customer',{method:'POST',body:JSON.stringify({phone})});if(!r.ok)throw Error(r.error);show('deleteMsg','✅ '+r.message);$('deletePhone').value='';await loadPlays();await loadStatus()}catch(e){show('deleteMsg',e.message)}})};
-$('deleteAllBtn').onclick=()=>{hide('deleteMsg');$('deleteAllConfirm').value='';hide('deleteAllModalMsg');$('deleteAllModal').classList.remove('hidden')};$('deleteAllNo').onclick=()=>$('deleteAllModal').classList.add('hidden');$('deleteAllYes').onclick=async()=>{hide('deleteAllModalMsg');if($('deleteAllConfirm').value!=='XOA TAT CA'){show('deleteAllModalMsg','❌ Nội dung xác nhận không đúng. Phải nhập chính xác: XOA TAT CA');return}$('deleteAllYes').disabled=true;try{const r=await api('/api/admin/delete-all-customers',{method:'POST',body:'{}'});if(!r.ok)throw Error(r.error);$('deleteAllModal').classList.add('hidden');show('deleteMsg','✅ '+r.message);await loadPlays();await loadStatus()}catch(e){show('deleteAllModalMsg',e.message)}finally{$('deleteAllYes').disabled=false}};
+async function loadStatus(){try{const r=await api('/api/admin/status');if(r.ok){let t='Chu kỳ '+r.cycleNo+': '+Number(r.currentPosition).toLocaleString('vi-VN')+'/'+Number(r.cycleSize).toLocaleString('vi-VN')+' lượt\n'+'Tổng lượt đã quay: '+Number(r.totalPlays).toLocaleString('vi-VN');if(r.daily)t+='\nLượt/ngày: '+r.daily.totalDaily+' (miễn phí '+r.daily.freeDaily+', nhiệm vụ '+r.daily.taskDaily+')';if(r.pendingCycleSize)t+='\nChu kỳ kế tiếp: '+Number(r.pendingCycleSize).toLocaleString('vi-VN')+' lượt';$('statusBox').textContent=t;}else $('statusBox').textContent=r.error||'Không tải được trạng thái chu kỳ.';}catch(e){$('statusBox').textContent='Không tải được trạng thái chu kỳ: '+e.message}}
+function renderQuotaSummary(size,q){const used=[0,1,2,3,4].reduce((s,i)=>s+Number(q?.[i]||0),0);$('quotaSummary').textContent='Tổng giải có quà: '+used.toLocaleString('vi-VN')+' · Chúc Bạn May Mắn Lần Sau: '+Math.max(0,Number(size||0)-used).toLocaleString('vi-VN');}
+async function loadCycleConfig(){try{const r=await api('/api/admin/cycle-config');if(r.ok){$('cycleSize').value=r.cycleSize;for(const i of [0,1,2,3,4])$('quota'+i).value=Number(r.quotas?.[i]??0);renderQuotaSummary(r.cycleSize,r.quotas);let text='Hiện tại: '+Number(r.currentPosition).toLocaleString('vi-VN')+'/'+Number(r.cycleSize).toLocaleString('vi-VN')+' lượt';if(r.pendingCycleSize)text+=' · Chu kỳ kế tiếp: '+Number(r.pendingCycleSize).toLocaleString('vi-VN')+' lượt với cấu hình giải mới';show('cycleMsg',text)}}catch(e){show('cycleMsg','Không tải được cấu hình: '+e.message)}}
+for(const id of ['cycleSize','quota0','quota1','quota2','quota3','quota4'])$(id).addEventListener('input',()=>renderQuotaSummary(Number($('cycleSize').value),{0:Number($('quota0').value||0),1:Number($('quota1').value||0),2:Number($('quota2').value||0),3:Number($('quota3').value||0),4:Number($('quota4').value||0)}));
+$('saveCycleBtn').onclick=async()=>{hide('cycleMsg');try{const payload={cycleSize:Number($('cycleSize').value),quota0:Number($('quota0').value),quota1:Number($('quota1').value),quota2:Number($('quota2').value),quota3:Number($('quota3').value),quota4:Number($('quota4').value)};const r=await api('/api/admin/cycle-config',{method:'POST',body:JSON.stringify(payload)});if(!r.ok)throw Error(r.error||'Không lưu được cấu hình');show('cycleMsg','✅ '+r.message);loadCycleConfig();loadStatus();}catch(e){show('cycleMsg',e.message)}};
+$('redeemBtn').onclick=async()=>{hide('redeemMsg');try{const r=await api('/api/admin/redeem',{method:'POST',body:JSON.stringify({code:$('rewardCode').value.trim()})});if(!r.ok)throw Error(r.error||'Không đổi được quà');show('redeemMsg','✅ Đổi quà thành công!');loadPlays()}catch(e){show('redeemMsg',e.message)}};
+
+let qrScanner=null;
+let scannerRunning=false;
+
+function scanMessage(text){
+  if(text){$('scanMsg').textContent=text;$('scanMsg').classList.remove('hidden');}
+  else $('scanMsg').classList.add('hidden');
+}
+async function stopScanner(){
+  if(qrScanner && scannerRunning){
+    try{await qrScanner.stop();}catch(e){}
+    try{await qrScanner.clear();}catch(e){}
+  }
+  scannerRunning=false;
+  qrScanner=null;
+  $('scannerPanel').classList.add('hidden');
+}
+$('scanBtn').onclick=async()=>{
+  hide('redeemMsg');
+  scanMessage('');
+  $('scannerPanel').classList.remove('hidden');
+  if(typeof Html5Qrcode==='undefined'){
+    scanMessage('Không tải được trình quét QR. Vui lòng kiểm tra kết nối mạng.');
+    return;
+  }
+  try{
+    qrScanner=new Html5Qrcode('reader');
+    scannerRunning=true;
+    await qrScanner.start(
+      {facingMode:'environment'},
+      {fps:10,qrbox:{width:250,height:250}},
+      async(decodedText)=>{
+        const value=String(decodedText||'').trim();
+        if(!value)return;
+        // Hỗ trợ cả mã thuần ANNA-... và đường dẫn có chứa mã.
+        const match=value.match(/ANNA-[A-Z0-9]+/i);
+        $('rewardCode').value=match?match[0].toUpperCase():value;
+        scanMessage('✅ Đã quét mã thành công. Anh bấm “XÁC NHẬN ĐỔI QUÀ”.');
+        await stopScanner();
+      },
+      ()=>{}
+    );
+  }catch(e){
+    scanMessage('Không mở được camera. Anh hãy cấp quyền camera cho trình duyệt rồi thử lại.');
+    scannerRunning=false;
+    qrScanner=null;
+  }
+};
+$('stopScanBtn').onclick=stopScanner;
+
+async function loadPlays(){const r=await api('/api/admin/plays');if(!r.ok){$('playsBody').innerHTML='<tr><td colspan="6">'+(r.error||'Không tải được dữ liệu')+'</td></tr>';return} $('playsBody').innerHTML=(r.rows||[]).map(x=>`<tr><td>${x.id}</td><td>${esc(x.name)}</td><td>${esc(x.phone)}</td><td>${esc(x.play_date)}</td><td>${esc(x.prize_name)}</td><td>${x.redeemed?'Đã đổi':'Chưa đổi'}</td></tr>`).join('')||'<tr><td colspan="6">Chưa có dữ liệu</td></tr>'}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('refreshBtn').onclick=loadPlays;
+$('deleteOneBtn').onclick=async()=>{
+  hide('deleteMsg');
+  const phone=$('deletePhone').value.trim();
+  if(!phone){show('deleteMsg','Vui lòng nhập số điện thoại cần xóa.');return}
+  if(!confirm('Anh chắc chắn muốn xóa khách hàng theo số điện thoại này cùng toàn bộ lượt quay và mã liên quan?'))return;
+  try{
+    const r=await api('/api/admin/delete-customer',{method:'POST',body:JSON.stringify({phone})});
+    if(!r.ok)throw Error(r.error||'Không xóa được khách hàng');
+    show('deleteMsg','✅ '+r.message);
+    $('deletePhone').value='';
+    loadPlays();
+  }catch(e){show('deleteMsg',e.message)}
+};
+
+$('deleteAllBtn').onclick=async()=>{
+  hide('deleteMsg');
+  const first=confirm('CẢNH BÁO: Thao tác này sẽ xóa TẤT CẢ khách hàng, lượt quay, mã mở khóa và lịch sử liên quan. Tiếp tục?');
+  if(!first)return;
+  const second=prompt('Để xác nhận, hãy nhập: XOA TAT CA');
+  if(second!=='XOA TAT CA'){show('deleteMsg','Đã hủy. Nội dung xác nhận không đúng.');return}
+  try{
+    const r=await api('/api/admin/delete-all-customers',{method:'POST',body:'{}'});
+    if(!r.ok)throw Error(r.error||'Không xóa được dữ liệu');
+    show('deleteMsg','✅ '+r.message);
+    loadPlays();
+  }catch(e){show('deleteMsg',e.message)}
+};
+
 bootAdmin();
+// F5/page restore hardening: re-check the server session when the page becomes visible
+// again, but never erase a saved token because of a transient network/D1 failure.
+window.addEventListener('pageshow',()=>{if(!booting)bootAdmin();});
 </script></body></html>

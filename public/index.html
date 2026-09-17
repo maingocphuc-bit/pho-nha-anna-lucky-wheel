@@ -114,25 +114,17 @@ function todayKey(){
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 
-async function refreshDailyConfig(){try{const r=await fetch('/api/daily-config',{cache:'no-store'});const b=await r.json();if(!b.ok)return;totalDaily=Math.max(1,Number(b.totalDaily||4));freeDaily=Math.min(totalDaily,Math.max(0,Number(b.freeDaily||0)));taskDaily=Math.min(Math.max(0,totalDaily-freeDaily),Math.max(0,Number(b.taskDaily||0)));taskEnabled=!!b.taskEnabled;taskLabel=String(b.taskLabel||'Làm nhiệm vụ để thêm lượt');if(phone)remaining=Math.max(0,totalDaily-usedToday);const rf=document.getElementById('ruleFree'),rt=document.getElementById('ruleTask'),rm=document.getElementById('ruleTotal');if(rf)rf.textContent=freeDaily+' lượt quay miễn phí';if(rt)rt.textContent=taskDaily+' lượt quay';if(rm)rm.textContent=totalDaily+' lượt quay trong 1 ngày';const tt=document.getElementById('taskTitle'),tx=document.getElementById('taskText');if(tt)tt.textContent=taskEnabled&&taskDaily>0?'Làm nhiệm vụ – mở thêm '+taskDaily+' lượt':'Lượt chơi';if(tx)tx.textContent=taskEnabled&&taskDaily>0?taskLabel+'. Sau khi được quán xác nhận, nhân viên sẽ mở thêm '+taskDaily+' lượt cho bạn.':'Hiện không yêu cầu nhiệm vụ để chơi thêm.';updateTurn();}catch(e){}}
-
 async function refreshPlayerState(){
-  if(!phone)return;
+  if(!phone || busy) return;
   try{
-    const name=document.getElementById('name').value.trim();
-    if(name.length<2)return;
-    const r=await post('/api/register',{name,phone});
-    usedToday=Number(r.used||0);
-    totalDaily=Number(r.totalDaily||totalDaily);
-    freeDaily=Number(r.freeDaily??freeDaily);
-    taskDaily=Number(r.taskDaily??taskDaily);
-    taskEnabled=r.taskEnabled!==false;
-    taskLabel=String(r.taskLabel||taskLabel);
-    remaining=Number(r.remaining||0);
-    inviteUnlock=!!r.inviteUnlock;
-    updateTurn();
+    const r=await fetch('/api/player-state?phone='+encodeURIComponent(phone),{cache:'no-store'});
+    const b=await r.json();
+    if(!b.ok)return;
+    usedToday=Number(b.used||0); totalDaily=Number(b.totalDaily||4); freeDaily=Number(b.freeDaily??2); taskDaily=Number(b.taskDaily??2); taskEnabled=b.taskEnabled!==false; taskLabel=String(b.taskLabel||'Mời bạn cùng ăn tại PHỞ NHÀ ANNA'); remaining=Number(b.remaining||0); inviteUnlock=!!b.inviteUnlock; updateTurn();
   }catch(e){}
 }
+
+async function refreshDailyConfig(){try{const r=await fetch('/api/daily-config',{cache:'no-store'});const b=await r.json();if(!b.ok)return;totalDaily=Math.max(1,Number(b.totalDaily||4));freeDaily=Math.min(totalDaily,Math.max(0,Number(b.freeDaily||0)));taskDaily=Math.min(Math.max(0,totalDaily-freeDaily),Math.max(0,Number(b.taskDaily||0)));taskEnabled=!!b.taskEnabled;taskLabel=String(b.taskLabel||'Làm nhiệm vụ để thêm lượt');if(phone)remaining=Math.max(0,totalDaily-usedToday);const rf=document.getElementById('ruleFree'),rt=document.getElementById('ruleTask'),rm=document.getElementById('ruleTotal');if(rf)rf.textContent=freeDaily+' lượt quay miễn phí';if(rt)rt.textContent=taskDaily+' lượt quay';if(rm)rm.textContent=totalDaily+' lượt quay trong 1 ngày';const tt=document.getElementById('taskTitle'),tx=document.getElementById('taskText');if(tt)tt.textContent=taskEnabled&&taskDaily>0?'Làm nhiệm vụ – mở thêm '+taskDaily+' lượt':'Lượt chơi';if(tx)tx.textContent=taskEnabled&&taskDaily>0?taskLabel+'. Sau khi được quán xác nhận, nhân viên sẽ mở thêm '+taskDaily+' lượt cho bạn.':'Hiện không yêu cầu nhiệm vụ để chơi thêm.';updateTurn();}catch(e){}}
 
 async function restoreSession(){
   try{
@@ -159,10 +151,11 @@ async function restoreSession(){
 function drawWheel(){const cx=350,cy=350,r=340,s=2*Math.PI/6;ctx.clearRect(0,0,700,700);for(let i=0;i<6;i++){const a=-Math.PI/2+i*s,b=a+s;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,b);ctx.closePath();ctx.fillStyle=colors[i];ctx.fill();ctx.strokeStyle='#fff7d5';ctx.lineWidth=7;ctx.stroke();const mid=a+s/2,x=cx+Math.cos(mid)*r*.60,y=cy+Math.sin(mid)*r*.60;ctx.save();ctx.translate(x,y);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='#000b';ctx.shadowBlur=4;ctx.shadowOffsetY=2;ctx.font='900 24px Arial';ctx.fillText(labels[i][0],0,-17);ctx.font='900 21px Arial';ctx.fillText(labels[i][1],0,17);ctx.restore();}ctx.beginPath();ctx.arc(cx,cy,r+1,0,Math.PI*2);ctx.strokeStyle='#ffd96a';ctx.lineWidth=10;ctx.stroke();}
 drawWheel();
 refreshDailyConfig();
-setInterval(refreshDailyConfig,15000);setInterval(refreshPlayerState,5000);
+setInterval(refreshDailyConfig,15000);
+setInterval(refreshPlayerState,3000);
 async function post(path,data){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});let b={};try{b=await r.json()}catch(e){}if(!r.ok||b.ok===false)throw new Error(b.error||('Máy chủ trả về lỗi '+r.status));return b;}
 function updateTurn(){document.getElementById('turn').textContent='Bạn còn '+remaining+' lượt quay hôm nay';document.getElementById('spin').disabled=busy||remaining<=0; const need=(taskEnabled&&taskDaily>0&&usedToday>=freeDaily&&remaining>0&&!inviteUnlock); document.getElementById('unlockBox').classList.toggle('hidden',!need);}
-document.getElementById('continue').onclick=async()=>{const name=document.getElementById('name').value.trim();phone=document.getElementById('phone').value.replace(/\D/g,'');const msg=document.getElementById('msg');msg.textContent='';if(name.length<2||phone.length<9){msg.textContent='Vui lòng nhập họ tên và số điện thoại hợp lệ.';return}const b=document.getElementById('continue');b.disabled=true;try{const r=await post('/api/register',{name,phone});remaining=Number(r.remaining||0);inviteUnlock=!!r.inviteUnlock;localStorage.setItem('phoAnnaPlayer',JSON.stringify({name,phone,date:todayKey()}));document.getElementById('register').classList.add('hidden');document.getElementById('game').classList.remove('hidden');updateTurn();document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){msg.textContent=e.message}b.disabled=false;};
+document.getElementById('continue').onclick=async()=>{const name=document.getElementById('name').value.trim();phone=document.getElementById('phone').value.replace(/\D/g,'');const msg=document.getElementById('msg');msg.textContent='';if(name.length<2||phone.length<9){msg.textContent='Vui lòng nhập họ tên và số điện thoại hợp lệ.';return}const b=document.getElementById('continue');b.disabled=true;try{const r=await post('/api/register',{name,phone});usedToday=Number(r.used||0);totalDaily=Number(r.totalDaily||4);freeDaily=Number(r.freeDaily??2);taskDaily=Number(r.taskDaily??2);taskEnabled=r.taskEnabled!==false;taskLabel=String(r.taskLabel||'Mời bạn cùng ăn tại PHỞ NHÀ ANNA');remaining=Number(r.remaining||0);inviteUnlock=!!r.inviteUnlock;localStorage.setItem('phoAnnaPlayer',JSON.stringify({name,phone,date:todayKey()}));document.getElementById('register').classList.add('hidden');document.getElementById('game').classList.remove('hidden');updateTurn();document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){msg.textContent=e.message}b.disabled=false;};
 document.getElementById('qrScanner').addEventListener('click',e=>{if(e.target.id==='qrScanner')stopQrScanner();});
 function showNotice(title,text){document.getElementById('noticeTitle').textContent=title;document.getElementById('noticeText').innerHTML=text;document.getElementById('noticeModal').classList.remove('hidden');}
 function closeNotice(){document.getElementById('noticeModal').classList.add('hidden');}
