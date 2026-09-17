@@ -47,3 +47,15 @@ Trong Admin > Cấu hình chu kỳ & số lượng giải, có thể nhập riê
 - Tổng số lượng 5 giải có quà không được vượt quá số lượt/chu kỳ.
 - Nếu đang ở giữa chu kỳ, cấu hình mới áp dụng từ chu kỳ kế tiếp để không làm xáo trộn chu kỳ đang chạy.
 - Chu kỳ 1 giữ quy tắc đặc biệt: 50K sớm hơn và 2 tô sớm hơn; từ chu kỳ 2 trở đi 50K khoảng giữa chu kỳ và 2 tô ở cuối chu kỳ.
+
+
+## Cấu hình lượt/ngày (bản V4)
+Trong Admin có một khung **Cấu hình lượt chơi mỗi ngày** gồm:
+- Tổng số lượt / ngày
+- Số lượt miễn phí / ngày
+- Số lượt làm nhiệm vụ
+- Nội dung nhiệm vụ để thêm lượt
+
+Quy tắc: **Tổng = Miễn phí + Làm nhiệm vụ**. Ví dụ 4 = 2 + 2. Khi lưu, trang khách hàng tự đồng bộ cấu hình mới và Worker áp dụng giới hạn mới ngay. Nhân viên mở thêm lượt chỉ cần nhập **một số điện thoại**; khách phải đã đăng ký trong ngày và chưa được mở nhiệm vụ trong ngày đó.
+
+Bản V4 tự tạo bảng D1 `daily_config` nếu chưa có, không cần chạy migration riêng.
