@@ -39,3 +39,10 @@ Sau deploy, test theo thứ tự:
 5. Đổi cấu hình lượt/ngày trên Admin → trang khách phải nhận cấu hình mới.
 
 Nếu trình duyệt đang giữ bản HTML cũ, đóng tab Admin rồi mở lại URL `/admin.html`; bản V9 đã gửi header no-store cho trang Admin/khách.
+
+## V10 FIXED – 3 lỗi vòng quay
+- **Thêm lượt:** trang khách tự đồng bộ trạng thái với máy chủ mỗi 5 giây và ngay khi quay lại tab; không cần F5 để thấy lượt được admin mở thêm.
+- **3 lượt liên tiếp đều trúng:** server kiểm tra 2 lượt gần nhất trên toàn hệ thống; nếu cả 2 đều là giải có thưởng thì lượt kế tiếp bắt buộc là “Chúc Bạn May Mắn Lần Sau”.
+- **Chống bấm/quay đồng thời:** server dùng khóa D1 toàn cục cho lượt quay, tránh hai request cùng lúc làm sai bộ đếm chu kỳ hoặc vượt quy tắc liên tiếp.
+- **Admin F5:** phiên quản trị dùng HttpOnly cookie và endpoint `/api/admin/session`; trang admin giữ trạng thái khi tải lại và chỉ đăng xuất khi server xác nhận phiên đã hết hiệu lực.
+
