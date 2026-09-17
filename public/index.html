@@ -48,6 +48,18 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
   .card h2{font-size:clamp(16px,5.2vw,32px);letter-spacing:-.8px}
 }
 
+
+/* Can chinh giao dien theo yeu cau: can bang khoi vong quay tren mobile */
+#game > h2{transform:translateY(-5px);margin-bottom:9px}
+#turn{transform:translateY(5px);margin-top:23px;margin-bottom:12px}
+#extraTurns button{margin-top:11px;transform:translateY(-4px)}
+/* Chu sua tuoi nam gon hon o trung tam cua mien xanh, dong TROI/ TUOI trai ra phia ngoai */
+/* Khung ket qua: xanh cung tong voi mien Sua Tuoi, chu trang */
+.result{background:linear-gradient(145deg,#2388df,#176fbd)!important;border:4px solid #f4cf62!important;color:#fff!important}
+.result h2{color:#fff!important;text-shadow:0 2px 0 #15538d!important}
+.result .note{color:#fff!important}
+.result.jackpot{background:linear-gradient(145deg,#2388df,#176fbd)!important;border-color:#f4cf62!important}
+
 </style>
 </head>
 <body>
@@ -109,7 +121,7 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
 <script>
 const prizes=['Ăn miễn phí 2 tô phở / 1 tuần','1 Tô Phở Miễn Phí 50K','Giảm giá 5K','1 Chai Sữa Tươi Mát Lạnh','1 Ly Trà Gừng Mát Lạnh','Chúc Bạn May Mắn Lần Sau'];
 const colors=['#d6282e','#f08a24','#f5bd19','#2388df','#249642','#8146aa'];
-const labels=[['🏆 Ăn miễn phí','2 tô phở / 1 tuần'],['🍜 1 Tô Phở','Miễn Phí 50K'],['🏷️ Giảm giá','5K'],['🥛 1 Chai Sữa Tươi','Mát Lạnh'],['🍵 1 Ly Trà Gừng','Mát Lạnh'],['🍀 Chúc Bạn','May Mắn Lần Sau']];
+const labels=[['🏆 Ăn miễn phí','2 tô phở / 1 tuần'],['🍜 1 Tô Phở','Miễn Phí 50K'],['🏷️ Giảm giá','5K'],['🥛 1 Chai Sữa','TƯƠI Mát Lạnh'],['🍵 1 Ly Trà Gừng','Mát Lạnh'],['🍀 Chúc Bạn','May Mắn Lần Sau']];
 const wheel=document.getElementById('wheel'),ctx=wheel.getContext('2d');let phone='',remaining=0,busy=false,angle=0,unlock2=false,unlock3=false;
 
 function todayKey(){
