@@ -104,11 +104,15 @@ async function adminSessionOk(req,env) {
   await ensureAdminSchema(env);
   const rawCookie=readCookie(req,'anna_admin_session');
   const rawHeader=req.headers.get('X-Admin-Token')||'';
-  const raw=rawCookie||rawHeader;
-  if(!raw)return false;
-  const h=await sha256(raw);
-  const row=await env.DB.prepare('SELECT id FROM admin_sessions WHERE token_hash=? AND expires_at > ?').bind(h,new Date().toISOString()).first();
-  return !!row;
+  // Test cookie and header independently. A stale cookie must never mask a valid
+  // localStorage/header session token after F5 or a previous deployment.
+  for (const raw of [rawCookie, rawHeader]) {
+    if (!raw) continue;
+    const h = await sha256(raw);
+    const row = await env.DB.prepare('SELECT id FROM admin_sessions WHERE token_hash=? AND expires_at > ?').bind(h, new Date().toISOString()).first();
+    if (row) return true;
+  }
+  return false;
 }
 
 async function createAdminAccount(env, password) {
@@ -639,8 +643,9 @@ async function api(req, env, url) {
   if (url.pathname === '/api/admin/session' && req.method === 'GET') {
     const ok=await adminOk(req,env);
     if(ok){
-      const raw=readCookie(req,'anna_admin_session')||req.headers.get('X-Admin-Token')||'';
-      if(raw){
+      const candidates=[readCookie(req,'anna_admin_session'),req.headers.get('X-Admin-Token')||''];
+      for(const raw of candidates){
+        if(!raw) continue;
         const h=await sha256(raw);
         const row=await env.DB.prepare('SELECT expires_at FROM admin_sessions WHERE token_hash=? AND expires_at > ?').bind(h,new Date().toISOString()).first();
         if(row)return json({ok:true},200,{'Set-Cookie':`anna_admin_session=${encodeURIComponent(raw)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`});
@@ -661,7 +666,7 @@ async function api(req, env, url) {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
     await ensurePlayColumns(env);
     await ensureCycleState(env);
-    const synced=await syncCycleState(env);
+    const synced=await reconcileCycleState(env);
     const state=await env.DB.prepare('SELECT cycle_no,position,updated_at FROM cycle_state_dynamic WHERE id=1').first();
     const total=await env.DB.prepare('SELECT COUNT(*) AS n FROM plays').first();
     const cycle=await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE cycle600_no=?').bind(Number(state.cycle_no)).first();
@@ -693,7 +698,7 @@ async function api(req, env, url) {
 
   if (url.pathname === '/api/admin/cycle-config' && req.method === 'GET') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
-    const s=await syncCycleState(env); const c=await getCycleConfig(env);
+    const s=await reconcileCycleState(env); const c=await getCycleConfig(env);
     const quotas=quotaObject(c), pendingQuotas=quotaObject(c,true);
     return json({ok:true,cycleNo:Number(s?.cycleNo||1),currentPosition:Number(s?.position||0),cycleSize:Number(c?.cycle_size||BASE_CYCLE_SIZE),pendingCycleSize:c?.pending_cycle_size?Number(c.pending_cycle_size):null,quotas,pendingQuotas,consolation:Number(c?.cycle_size||BASE_CYCLE_SIZE)-Object.values(quotas).reduce((a,b)=>a+b,0)});
   }
