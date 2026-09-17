@@ -78,6 +78,23 @@ async function ensurePlayColumns(env) {
   for (const sql of adds) await env.DB.prepare(sql).run();
 }
 
+async function ensureDailyConfig(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS daily_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    total_daily INTEGER NOT NULL DEFAULT 4,
+    free_daily INTEGER NOT NULL DEFAULT 2,
+    task_daily INTEGER NOT NULL DEFAULT 2,
+    task_enabled INTEGER NOT NULL DEFAULT 1,
+    task_label TEXT NOT NULL DEFAULT 'Mời bạn cùng ăn tại PHỞ NHÀ ANNA',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`).run();
+  await env.DB.prepare(`INSERT OR IGNORE INTO daily_config(id,total_daily,free_daily,task_daily,task_enabled,task_label) VALUES(1,4,2,2,1,'Mời bạn cùng ăn tại PHỞ NHÀ ANNA')`).run();
+}
+async function getDailyConfig(env) {
+  await ensureDailyConfig(env);
+  return await env.DB.prepare('SELECT total_daily,free_daily,task_daily,task_enabled,task_label,updated_at FROM daily_config WHERE id=1').first();
+}
+
 async function ensureCycleConfig(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS cycle_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -186,10 +203,34 @@ function chooseEvenly(counts, quotas, position, size) {
   return future.length ? future[0].i : 5;
 }
 
+async function ensureCycleState(env) {
+  // Bộ đếm riêng cho chu kỳ động: không giới hạn 300/600, hỗ trợ mọi cycle_size hợp lệ.
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS cycle_state_dynamic (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    cycle_no INTEGER NOT NULL DEFAULT 1,
+    position INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO cycle_state_dynamic(id,cycle_no,position) VALUES(1,1,0)").run();
+}
+
+async function customerUnlocks(env, customerId, date) {
+  const rows = await env.DB.prepare('SELECT unlock_type FROM customer_unlocks WHERE customer_id=? AND unlock_date=?').bind(customerId,date).all();
+  const types = new Set((rows.results || []).map(r => Number(r.unlock_type)));
+  return { inviteUnlock: types.has(4), unlock2: types.has(2), unlock3: types.has(3) };
+}
+
+function specialExpires(prizeIndex, date) {
+  if (prizeIndex === 0) return new Date(Date.now() + 7 * 86400000).toISOString();
+  if (prizeIndex === 1) return new Date(Date.now() + 2 * 86400000).toISOString();
+  if ([2,3,4].includes(prizeIndex)) return new Date(Date.now() + 1 * 86400000).toISOString();
+  return null;
+}
+
 async function syncCycleState(env) {
   await ensurePlayColumns(env);
   await ensureCycleState(env);
-  const state = await env.DB.prepare('SELECT cycle_no,position FROM cycle_state WHERE id=1').first();
+  const state = await env.DB.prepare('SELECT cycle_no,position FROM cycle_state_dynamic WHERE id=1').first();
   if (!state) return null;
   const config = await getCycleConfig(env);
   const maxRow = await env.DB.prepare('SELECT MAX(cycle600_no) AS cycle_no, MAX(cycle600_position) AS position FROM plays WHERE cycle600_no=(SELECT MAX(cycle600_no) FROM plays)').first();
@@ -200,7 +241,7 @@ async function syncCycleState(env) {
   if (maxCycle > cycleNo || (maxCycle === cycleNo && maxPosition > position)) {
     cycleNo = maxCycle;
     position = maxPosition;
-    await env.DB.prepare("UPDATE cycle_state SET cycle_no=?,position=?,updated_at=datetime('now') WHERE id=1").bind(cycleNo,position).run();
+    await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=?,position=?,updated_at=datetime('now') WHERE id=1").bind(cycleNo,position).run();
   }
   return {cycleNo,position,cycleSize:Number(config?.cycle_size||BASE_CYCLE_SIZE),pendingCycleSize:config?.pending_cycle_size?Number(config.pending_cycle_size):null,quotas:quotaObject(config),pendingQuotas:quotaObject(config,true)};
 }
@@ -209,7 +250,7 @@ async function reserveCyclePosition(env) {
   await syncCycleState(env);
   // Atomic counter update. If the current cycle is complete, the pending size becomes active for the new cycle.
   const result = await env.DB.prepare(`
-    UPDATE cycle_state
+    UPDATE cycle_state_dynamic
     SET cycle_no = CASE
       WHEN position >= (SELECT cycle_size FROM cycle_config WHERE id=1)
         THEN cycle_no + 1
@@ -254,14 +295,24 @@ async function specialHistory(env, customerId) {
 async function api(req, env, url) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
+  if (url.pathname === '/api/daily-config' && req.method === 'GET') {
+    const dc=await getDailyConfig(env);
+    return json({ok:true,totalDaily:Number(dc?.total_daily||4),freeDaily:Number(dc?.free_daily||2),taskDaily:Number(dc?.task_daily||2),taskEnabled:Number(dc?.task_enabled||0)===1,taskLabel:String(dc?.task_label||'')});
+  }
+
   if (url.pathname === '/api/register' && req.method === 'POST') {
     const b = await req.json(); const name = String(b.name || '').trim(); const phone = normPhone(b.phone);
     if (name.length < 2 || phone.length < 9 || phone.length > 12) return json({ ok:false, error:'Tên hoặc số điện thoại không hợp lệ.' },400);
-    await env.DB.prepare("INSERT INTO customers(name,phone) VALUES(?,?) ON CONFLICT(phone) DO UPDATE SET name=excluded.name,updated_at=datetime('now')").bind(name,phone).run();
+    await env.DB.prepare("INSERT INTO customers(name,phone) VALUES(?,?) ON CONFLICT(phone) DO UPDATE SET name=excluded.name").bind(name,phone).run();
     const c = await env.DB.prepare('SELECT id,name,phone FROM customers WHERE phone=?').bind(phone).first();
     const d = today(); const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE customer_id=? AND play_date=?').bind(c.id,d).first();
     const unlocks = await customerUnlocks(env,c.id,d); const used = Number(row?.n || 0);
-    return json({ ok:true, customer:{id:c.id,name:c.name}, used, remaining:Math.max(0,4-used), ...unlocks });
+    const dc = await getDailyConfig(env);
+    const totalDaily = Math.max(1, Number(dc?.total_daily ?? 4));
+    const freeDaily = Math.min(totalDaily, Math.max(0, Number(dc?.free_daily ?? 2)));
+    const taskDaily = Math.min(Math.max(0,totalDaily-freeDaily), Math.max(0,Number(dc?.task_daily ?? 2)));
+    const taskEnabled = Number(dc?.task_enabled ?? 1) === 1;
+    return json({ ok:true, customer:{id:c.id,name:c.name}, used, remaining:Math.max(0,totalDaily-used), totalDaily, freeDaily, taskDaily, taskEnabled, taskLabel:String(dc?.task_label || ''), unlockedExtra:unlocks.inviteUnlock ? taskDaily : 0, ...unlocks });
   }
 
   if (url.pathname === '/api/spin' && req.method === 'POST') {
@@ -272,8 +323,13 @@ async function api(req, env, url) {
     const d = today();
     const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE customer_id=? AND play_date=?').bind(c.id,d).first();
     const used = Number(row?.n || 0); const unlocks = await customerUnlocks(env,c.id,d);
-    if (used >= 4) return json({ok:false,error:'Hôm nay khách đã hết 4 lượt quay.'},429);
-    if (used >= 2 && !unlocks.inviteUnlock) return json({ok:false,code:'INVITE_UNLOCK',error:'Lượt 3 và 4 cần quán xác nhận khách đã mời bạn cùng ăn.',...unlocks},403);
+    const dc = await getDailyConfig(env);
+    const totalDaily = Math.max(1, Number(dc?.total_daily ?? 4));
+    const freeDaily = Math.min(totalDaily, Math.max(0, Number(dc?.free_daily ?? 2)));
+    const taskDaily = Math.min(Math.max(0,totalDaily-freeDaily), Math.max(0,Number(dc?.task_daily ?? 2)));
+    const taskEnabled = Number(dc?.task_enabled ?? 1) === 1;
+    if (used >= totalDaily) return json({ok:false,error:`Hôm nay khách đã hết ${totalDaily} lượt quay.`},429);
+    if (taskEnabled && used >= freeDaily && taskDaily > 0 && !unlocks.inviteUnlock) return json({ok:false,code:'INVITE_UNLOCK',error:`Khách cần hoàn thành nhiệm vụ để mở thêm ${taskDaily} lượt.`,totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),...unlocks},403);
 
     const history = await specialHistory(env,c.id);
     await ensureCycleState(env);
@@ -339,7 +395,7 @@ async function api(req, env, url) {
     let qr; try { qr=makeQrDataUrl(rewardCode); } catch(e) { console.error(e); return json({ok:false,error:'Tạo mã QR thất bại.'},500); }
     return json({ok:true,prizeIndex:i,prize:p.name,special:p.special,rewardCode,qr,
       specialTerms:i===0?'Có hiệu lực 7 ngày; tối đa 1 tô/ngày; giá trị tối đa 50.000đ/tô; phần vượt quá khách tự thanh toán.':i===1?'Có hiệu lực 2 ngày; áp dụng cho 1 tô phở tối đa 50.000đ.':i===2?'Có hiệu lực 1 ngày.':i===3?'Có hiệu lực 1 ngày.':i===4?'Có hiệu lực 1 ngày.':'',
-      remaining:Math.max(0,3-(used+1)),cycleNo,cyclePosition});
+      remaining:Math.max(0,totalDaily-(used+1)),totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),cycleNo,cyclePosition});
   }
 
   if (url.pathname === '/api/unlock/claim' && req.method === 'POST') {
@@ -381,13 +437,33 @@ async function api(req, env, url) {
     await ensurePlayColumns(env);
     await ensureCycleState(env);
     const synced=await syncCycleState(env);
-    const state=await env.DB.prepare('SELECT cycle_no,position,updated_at FROM cycle_state WHERE id=1').first();
+    const state=await env.DB.prepare('SELECT cycle_no,position,updated_at FROM cycle_state_dynamic WHERE id=1').first();
     const total=await env.DB.prepare('SELECT COUNT(*) AS n FROM plays').first();
     const cycle=await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE cycle600_no=?').bind(Number(state.cycle_no)).first();
     const cfg=await getCycleConfig(env);
     const size=Number(cfg?.cycle_size||BASE_CYCLE_SIZE);
     const current=Math.min(size,Number(state.position||0));
-    return json({ok:true,cycleNo:Number(state.cycle_no),currentPosition:current,cycleSize:size,pendingCycleSize:cfg?.pending_cycle_size?Number(cfg.pending_cycle_size):null,cyclePlays:Number(cycle?.n||0),totalPlays:Number(total?.n||0),updatedAt:state.updated_at||null});
+    const dc=await getDailyConfig(env);
+    return json({ok:true,cycleNo:Number(state.cycle_no),currentPosition:current,cycleSize:size,pendingCycleSize:cfg?.pending_cycle_size?Number(cfg.pending_cycle_size):null,cyclePlays:Number(cycle?.n||0),totalPlays:Number(total?.n||0),updatedAt:state.updated_at||null,daily:{totalDaily:Number(dc?.total_daily||4),freeDaily:Number(dc?.free_daily||2),taskDaily:Number(dc?.task_daily||2),taskEnabled:Number(dc?.task_enabled||0)===1,taskLabel:String(dc?.task_label||'')}});
+  }
+
+  if (url.pathname === '/api/admin/daily-config' && req.method === 'GET') {
+    if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
+    const dc=await getDailyConfig(env);
+    return json({ok:true,totalDaily:Number(dc?.total_daily||4),freeDaily:Number(dc?.free_daily||2),taskDaily:Number(dc?.task_daily||2),taskEnabled:Number(dc?.task_enabled||0)===1,taskLabel:String(dc?.task_label||'')});
+  }
+  if (url.pathname === '/api/admin/daily-config' && req.method === 'POST') {
+    if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
+    const b=await req.json();
+    const totalDaily=Math.floor(Number(b.totalDaily)), freeDaily=Math.floor(Number(b.freeDaily)), taskDaily=Math.floor(Number(b.taskDaily));
+    const taskEnabled=b.taskEnabled===undefined ? true : !!b.taskEnabled;
+    const taskLabel=String(b.taskLabel??'Mời bạn cùng ăn tại PHỞ NHÀ ANNA').trim().slice(0,200);
+    if(!Number.isInteger(totalDaily)||totalDaily<1||totalDaily>100)return json({ok:false,error:'Tổng số lượt/ngày phải từ 1 đến 100.'},400);
+    if(!Number.isInteger(freeDaily)||freeDaily<0||freeDaily>totalDaily)return json({ok:false,error:'Số lượt miễn phí/ngày không hợp lệ.'},400);
+    if(!Number.isInteger(taskDaily)||taskDaily<0||taskDaily!==totalDaily-freeDaily)return json({ok:false,error:'Số lượt làm nhiệm vụ phải bằng Tổng số lượt/ngày trừ Số lượt miễn phí/ngày.'},400);
+    await ensureDailyConfig(env);
+    await env.DB.prepare('UPDATE daily_config SET total_daily=?,free_daily=?,task_daily=?,task_enabled=?,task_label=?,updated_at=datetime('now') WHERE id=1').bind(totalDaily,freeDaily,taskDaily,taskEnabled?1:0,taskLabel||'Làm nhiệm vụ để thêm lượt').run();
+    return json({ok:true,totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:taskLabel||'Làm nhiệm vụ để thêm lượt',message:'Đã cập nhật giới hạn lượt/ngày. Trang khách hàng sẽ áp dụng cấu hình mới ngay.'});
   }
 
   if (url.pathname === '/api/admin/cycle-config' && req.method === 'GET') {
@@ -412,7 +488,7 @@ async function api(req, env, url) {
       4: b.quota4===undefined ? currentQuotas[4] : Math.floor(Number(b.quota4))
     };
     const valid=validateQuotas(size,incoming); if(!valid.ok)return json(valid,400);
-    await ensureCycleState(env); const state=await env.DB.prepare('SELECT cycle_no,position FROM cycle_state WHERE id=1').first();
+    await ensureCycleState(env); const state=await env.DB.prepare('SELECT cycle_no,position FROM cycle_state_dynamic WHERE id=1').first();
     const pos=Number(state?.position||0);
     const params=[size,incoming[0],incoming[1],incoming[2],incoming[3],incoming[4]];
     if(pos===0){
@@ -440,19 +516,17 @@ async function api(req, env, url) {
 
   if (url.pathname === '/api/admin/unlock' && req.method === 'POST') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
-    const b=await req.json(); const phoneA=normPhone(b.phoneA||b.phone); const phoneB=normPhone(b.phoneB);
-    if(phoneA.length<9||phoneA.length>12||phoneB.length<9||phoneB.length>12||phoneA===phoneB)return json({ok:false,error:'Vui lòng nhập đúng 2 số điện thoại khác nhau.'},400);
-    const customers=await env.DB.prepare('SELECT id,phone,name FROM customers WHERE phone IN (?,?)').bind(phoneA,phoneB).all();
-    if((customers.results||[]).length!==2)return json({ok:false,error:'Cả hai số điện thoại phải đăng ký chương trình trước.'},404);
-    const ca=customers.results.find(x=>String(x.phone)===phoneA), cb=customers.results.find(x=>String(x.phone)===phoneB);
+    const b=await req.json(); const phone=normPhone(b.phone);
+    if(phone.length<9||phone.length>12)return json({ok:false,error:'Số điện thoại không hợp lệ.'},400);
+    const c=await env.DB.prepare('SELECT id,phone,name FROM customers WHERE phone=?').bind(phone).first();
+    if(!c)return json({ok:false,error:'Số điện thoại này chưa đăng ký chương trình.'},404);
+    const dc=await getDailyConfig(env); const taskDaily=Math.max(0,Number(dc?.task_daily||0));
+    if(taskDaily<=0 || Number(dc?.task_enabled||0)!==1)return json({ok:false,error:'Hiện cấu hình không có lượt làm nhiệm vụ để mở.'},400);
     const d=today();
-    const existing=await env.DB.prepare('SELECT customer_id FROM customer_unlocks WHERE customer_id IN (?,?) AND unlock_type=4 AND unlock_date=?').bind(ca.id,cb.id,d).all();
-    if((existing.results||[]).length>0)return json({ok:false,error:'Một hoặc cả hai khách đã được mở thêm 2 lượt hôm nay.'},409);
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO customer_unlocks(customer_id,unlock_type,unlock_date,token,created_at) VALUES(?,?,?,?,datetime('now'))").bind(ca.id,4,d,tokenCode('PAIR')),
-      env.DB.prepare("INSERT INTO customer_unlocks(customer_id,unlock_type,unlock_date,token,created_at) VALUES(?,?,?,?,datetime('now'))").bind(cb.id,4,d,tokenCode('PAIR'))
-    ]);
-    return json({ok:true,unlockType:4,message:'Đã mở thêm 2 lượt ngay cho cả hai khách.',customers:[{name:ca.name,phone:phoneA},{name:cb.name,phone:phoneB}]});
+    const existing=await env.DB.prepare('SELECT id FROM customer_unlocks WHERE customer_id=? AND unlock_type=4 AND unlock_date=?').bind(c.id,d).first();
+    if(existing)return json({ok:false,error:`Khách này đã được mở thêm ${taskDaily} lượt hôm nay.`},409);
+    await env.DB.prepare("INSERT INTO customer_unlocks(customer_id,unlock_type,unlock_date,token,created_at) VALUES(?,?,?,?,datetime('now'))").bind(c.id,4,d,tokenCode('TASK')).run();
+    return json({ok:true,unlockType:4,message:`Đã mở thêm ${taskDaily} lượt cho khách.`,customer:{name:c.name,phone:c.phone},taskDaily,totalDaily:Number(dc?.total_daily||4),freeDaily:Number(dc?.free_daily||2)});
   }
 
   if (url.pathname === '/api/admin/delete-customer' && req.method === 'POST') {
@@ -472,7 +546,7 @@ async function api(req, env, url) {
     await env.DB.batch([env.DB.prepare('DELETE FROM customer_unlocks'),env.DB.prepare('DELETE FROM unlock_tokens'),env.DB.prepare('DELETE FROM plays'),env.DB.prepare('DELETE FROM customers')]);
     // Xóa dữ liệu test nhưng đưa bộ đếm về đầu chu kỳ 1.
     await ensureCycleState(env);
-    await env.DB.prepare("UPDATE cycle_state SET cycle_no=1,position=0,updated_at=datetime('now') WHERE id=1").run();
+    await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=1,position=0,updated_at=datetime('now') WHERE id=1").run();
     await env.DB.prepare("UPDATE cycle_config SET cycle_size=COALESCE(pending_cycle_size,cycle_size),pending_cycle_size=NULL,updated_at=datetime('now') WHERE id=1").run();
     const cfg=await getCycleConfig(env);
     return json({ok:true,message:`Đã xóa toàn bộ khách hàng và dữ liệu liên quan; bộ đếm đã về 0/${Number(cfg.cycle_size||600).toLocaleString('vi-VN')}.`});
