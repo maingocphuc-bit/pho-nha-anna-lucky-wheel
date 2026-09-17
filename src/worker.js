@@ -101,19 +101,45 @@ function specialExpires(prizeIndex, date) {
   if ([2, 3, 4].includes(prizeIndex)) return new Date(Date.now() + 1 * 86400000).toISOString();
   return null;
 }
-function chooseRegular(counts) {
-  const available = Object.entries(REGULAR_QUOTAS)
-    .map(([idx, quota]) => ({ i: Number(idx), left: quota - Number(counts[idx] || 0) }))
-    .filter(x => x.left > 0);
-  const totalLeft = available.reduce((s, x) => s + x.left, 0);
-  if (!totalLeft) return 5;
-  let r = Math.random() * totalLeft;
-  for (const x of available) {
-    if (r < x.left) return x.i;
-    r -= x.left;
-  }
-  return available[available.length - 1].i;
+// Phân bổ giải nhỏ theo vị trí trên toàn bộ 600 lượt.
+// Mỗi loại có các "mốc mục tiêu" cách nhau gần đều; khi một mốc bị chiếm bởi
+// giải đặc biệt, giải nhỏ sẽ được trao ở mốc kế tiếp còn phù hợp. Vì vậy giải
+// không còn bị bốc ngẫu nhiên dồn vào những lượt đầu chu kỳ.
+function regularTargetPositions(prizeIndex) {
+  const quota = Number(REGULAR_QUOTAS[prizeIndex] || 0);
+  if (!quota) return [];
+  // Chia đều quota trên 600 vị trí, không đặt vào vị trí 600 dành cho giải 2 tô.
+  return Array.from({ length: quota }, (_, k) => Math.round((k + 1) * 600 / (quota + 1)));
 }
+
+const REGULAR_TARGETS = {
+  2: regularTargetPositions(2),
+  3: regularTargetPositions(3),
+  4: regularTargetPositions(4)
+};
+
+function chooseRegular(counts, cyclePosition) {
+  const position = Number(cyclePosition);
+  const candidates = Object.entries(REGULAR_QUOTAS)
+    .map(([idx, quota]) => {
+      const i = Number(idx);
+      const used = Number(counts[i] || 0);
+      if (used >= quota) return null;
+      const target = REGULAR_TARGETS[i][used];
+      return { i, target, overdue: position - target };
+    })
+    .filter(Boolean);
+
+  if (!candidates.length) return 5;
+
+  // Chỉ trao khi đã tới mốc mục tiêu. Nếu nhiều loại cùng đến hạn,
+  // ưu tiên loại bị trễ nhiều nhất để giữ độ đều cho cả chu kỳ.
+  const due = candidates.filter(x => x.overdue >= 0);
+  if (!due.length) return 5;
+  due.sort((a,b) => (b.overdue-a.overdue) || (a.target-b.target) || (a.i-b.i));
+  return due[0].i;
+}
+
 async function syncCycleState(env) {
   await ensureCycle600(env);
   const state = await env.DB.prepare('SELECT cycle_no,position FROM cycle_state_600 WHERE id=1').first();
@@ -182,7 +208,10 @@ async function api(req, env, url) {
     const rows = await env.DB.prepare('SELECT id,customer_id,prize_index,redeemed FROM plays WHERE cycle600_no=? ORDER BY cycle600_position ASC').bind(cycleNo).all();
     const cycleRows = rows.results || [];
     const counts = [0,0,0,0,0,0];
-    for (const r of cycleRows) { const idx=Number(r.prize_index); if(idx>=0&&idx<6) counts[idx]++; }
+    for (const r of cycleRows) {
+      const idx=Number(r.prize_index);
+      if(idx>=0&&idx<6) counts[idx]++;
+    }
 
     const eligibleFor = async (specialIndex) => {
       return !(specialIndex===0 ? history.has1 : history.has0);
@@ -192,25 +221,32 @@ async function api(req, env, url) {
     const special0Awarded = cycleRows.some(r => Number(r.prize_index)===0);
 
     let i;
-    // Vị trí 600 phải ưu tiên giải 2 tô phở trước mọi giải đặc biệt còn thiếu.
-    // Vị trí 310 trở đi mới dùng cho giải 50K nếu giải này chưa được trao.
-    if (cyclePosition === 600 && !special0Awarded && await eligibleFor(0)) {
+    // CHU KỲ 1: đưa 2 giải phở đặc biệt đến sớm để tạo hiệu ứng
+    // khách nhận thưởng và giới thiệu thêm khách. Các chu kỳ sau trở lại
+    // mốc bình thường: 50K từ lượt 310 và 2 tô tại lượt 600.
+    const special50Target = cycleNo === 1 ? 95 : 310;
+    const special2BowlTarget = cycleNo === 1 ? 150 : 600;
+
+    // Ưu tiên tuyệt đối mốc đặc biệt của chu kỳ hiện tại nếu khách đủ điều kiện.
+    if (cyclePosition === special2BowlTarget && !special0Awarded && await eligibleFor(0)) {
       i = 0;
-    } else if (!special1Awarded && cyclePosition >= 310 && await eligibleFor(1)) {
+    } else if (!special1Awarded && cyclePosition >= special50Target && await eligibleFor(1)) {
       i = 1;
     } else {
-      i = chooseRegular(counts);
+      i = chooseRegular(counts, cyclePosition);
     }
 
-    // Nếu vị trí 600 gặp khách đã có giải đặc biệt còn lại, tìm lượt thường
-    // gần nhất trước đó của một khách chưa có giải đặc biệt 50K và đổi giải.
-    if (cyclePosition === 600 && !special0Awarded && !await eligibleFor(0)) {
+    // Nếu đúng mốc giải đặc biệt nhưng khách không đủ điều kiện vì đã từng
+    // nhận giải đặc biệt còn lại, chuyển giải sang lượt thường gần nhất trước đó
+    // của một khách đủ điều kiện. Như vậy quota giải đặc biệt vẫn được bảo toàn.
+    if (cyclePosition === special2BowlTarget && !special0Awarded && !await eligibleFor(0)) {
       const prior = await env.DB.prepare(`
         SELECT p.id,p.prize_index,p.customer_id,p.reward_code,p.created_at
         FROM plays p
         WHERE p.cycle600_no=? AND p.cycle600_position<? AND p.prize_index IN (2,3,4,5)
           AND p.redeemed=0 AND COALESCE(p.redemption_count,0)=0
           AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=1)
+          AND NOT EXISTS (SELECT 1 FROM plays h2 WHERE h2.customer_id=p.customer_id AND h2.prize_index=0)
         ORDER BY p.cycle600_position DESC LIMIT 1
       `).bind(cycleNo,cyclePosition).first();
       if (prior) {
@@ -221,6 +257,27 @@ async function api(req, env, url) {
         i=displacedIndex;
       } else {
         i=5;
+      }
+    }
+
+    // Nếu đúng mốc 50K nhưng khách không đủ điều kiện (đã có giải 2 tô),
+    // tìm một lượt thường gần nhất trước đó của khách đủ điều kiện để chuyển giải.
+    if (cyclePosition === special50Target && !special1Awarded && !await eligibleFor(1)) {
+      const prior = await env.DB.prepare(`
+        SELECT p.id,p.prize_index,p.customer_id
+        FROM plays p
+        WHERE p.cycle600_no=? AND p.cycle600_position<? AND p.prize_index IN (2,3,4,5)
+          AND p.redeemed=0 AND COALESCE(p.redemption_count,0)=0
+          AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=0)
+          AND NOT EXISTS (SELECT 1 FROM plays h2 WHERE h2.customer_id=p.customer_id AND h2.prize_index=1)
+        ORDER BY p.cycle600_position DESC LIMIT 1
+      `).bind(cycleNo,cyclePosition).first();
+      if (prior) {
+        const displacedIndex=Number(prior.prize_index);
+        const specialExpiry=specialExpires(1,d);
+        await env.DB.prepare('UPDATE plays SET prize_index=1,prize_name=?,expires_at=?,redeemed=0,redemption_count=0,redeemed_at=NULL WHERE id=?')
+          .bind(PRIZES[1].name,specialExpiry,prior.id).run();
+        i=displacedIndex;
       }
     }
 
@@ -303,10 +360,12 @@ async function api(req, env, url) {
     const b=await req.json(); const phone=normPhone(b.phone); const unlockType=Number(b.unlockType);
     if(phone.length<9||phone.length>12||![2,3].includes(unlockType))return json({ok:false,error:'Số điện thoại hoặc loại lượt mở khóa không hợp lệ.'},400);
     const c=await env.DB.prepare('SELECT id FROM customers WHERE phone=?').bind(phone).first(); if(!c)return json({ok:false,error:'Khách chưa đăng ký.'},404);
-    const token=tokenCode('UNLOCK'); const expires=new Date(Date.now()+10*60*1000).toISOString();
-    await env.DB.prepare("INSERT INTO unlock_tokens(token,customer_id,phone,unlock_type,expires_at,status,created_at) VALUES(?,?,?,?,?,'issued',datetime('now'))").bind(token,c.id,phone,unlockType,expires).run();
-    const unlockUrl=new URL(url.origin+'/'); unlockUrl.searchParams.set('unlock',token);
-    return json({ok:true,token,unlockType,expiresAt:expires,url:unlockUrl.toString(),qr:makeQrDataUrl(unlockUrl.toString())});
+    const d=today();
+    const existing=await env.DB.prepare('SELECT id FROM customer_unlocks WHERE customer_id=? AND unlock_type=? AND unlock_date=?').bind(c.id,unlockType,d).first();
+    if(existing)return json({ok:false,error:'Lượt này đã được mở khóa hôm nay.'},409);
+    const token='ADMIN-DIRECT-'+crypto.randomUUID().replaceAll('-','').slice(0,12).toUpperCase();
+    await env.DB.prepare("INSERT INTO customer_unlocks(customer_id,unlock_type,unlock_date,token,created_at) VALUES(?,?,?,?,datetime('now'))").bind(c.id,unlockType,d,token).run();
+    return json({ok:true,unlockType,unlockDate:d,direct:true,message:'Đã mở khóa trực tiếp cho khách hàng.'});
   }
 
   if (url.pathname === '/api/admin/delete-customer' && req.method === 'POST') {
