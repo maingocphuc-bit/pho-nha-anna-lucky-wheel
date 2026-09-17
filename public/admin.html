@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PHỞ NHÀ ANNA – Quản lý</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#4b1e12,#8d3b20);font-family:Arial,sans-serif;color:#3d241b;padding:18px}.wrap{max-width:760px;margin:auto}.brand{text-align:center;color:#ffe7a0;font-size:30px;font-weight:900;margin:12px 0 20px}.card{background:#fff6e4;border:4px solid #e7b83e;border-radius:22px;padding:20px;margin:16px 0;box-shadow:0 8px 0 #542515}h2{margin:0 0 16px;color:#9b2d25}label{display:block;font-weight:700;margin:10px 0 6px}input,select{width:100%;padding:14px;border:2px solid #d9c5a3;border-radius:13px;font-size:17px;background:#fff}button{border:0;border-radius:14px;padding:14px 18px;background:linear-gradient(#ff4035,#df1717);color:white;font-size:17px;font-weight:900;box-shadow:0 4px 0 #8d281b;margin-top:12px;cursor:pointer}button:disabled{opacity:.5}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.msg{padding:12px;border-radius:12px;background:#fff0b9;margin-top:12px;white-space:pre-wrap}.hidden{display:none}.qr{text-align:center;margin-top:15px}.qr img{max-width:280px;width:100%;background:white;padding:12px;border-radius:15px}.token{font-size:20px;font-weight:900;word-break:break-all;text-align:center;margin:10px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px;border-bottom:1px solid #dbc9ac;text-align:left;white-space:nowrap}th{background:#f2d58c}.small{font-size:13px;color:#6d5145}.logout{float:right;background:#70402c;font-size:13px;padding:8px 12px}.ok{color:#137333;font-weight:700}.danger{color:#b3261e;font-weight:700}.dangerBtn{background:linear-gradient(#d92d20,#a91510);width:100%}.muted{color:#6d5145;font-size:13px}@media(max-width:560px){.row{grid-template-columns:1fr}.brand{font-size:24px}}
@@ -76,7 +76,7 @@ async function loadDailyConfig(){try{const r=await api('/api/admin/daily-config'
 for(const id of ['totalDaily','freeDaily','taskDaily'])$(id).addEventListener('input',renderDailySummary);
 $('saveDailyBtn').onclick=async()=>{hide('dailyMsg');if(!renderDailySummary())return;try{const r=await api('/api/admin/daily-config',{method:'POST',body:JSON.stringify({totalDaily:Number($('totalDaily').value),freeDaily:Number($('freeDaily').value),taskDaily:Number($('taskDaily').value),taskEnabled:true,taskLabel:$('taskLabel').value})});if(!r.ok)throw Error(r.error||'Không lưu được cấu hình');show('dailyMsg','✅ '+r.message);loadStatus();}catch(e){show('dailyMsg',e.message)}};
 
-async function loadStatus(){try{const r=await api('/api/admin/status');if(r.ok){let t='Chu kỳ '+r.cycleNo+': '+Number(r.currentPosition).toLocaleString('vi-VN')+'/'+Number(r.cycleSize).toLocaleString('vi-VN')+' lượt · Tổng lượt đã quay: '+Number(r.totalPlays).toLocaleString('vi-VN');if(r.pendingCycleSize)t+=' · Chu kỳ kế tiếp: '+Number(r.pendingCycleSize).toLocaleString('vi-VN');if(r.daily)t+=' · Lượt/ngày: '+r.daily.totalDaily+' (miễn phí '+r.daily.freeDaily+', nhiệm vụ '+r.daily.taskDaily+')';$('statusBox').textContent=t;}else $('statusBox').textContent=r.error||'Không tải được trạng thái chu kỳ.';}catch(e){$('statusBox').textContent='Không tải được trạng thái chu kỳ: '+e.message}}
+async function loadStatus(){try{const r=await api('/api/admin/status');if(r.ok){let t='Chu kỳ '+r.cycleNo+': '+Number(r.currentPosition).toLocaleString('vi-VN')+'/'+Number(r.cycleSize).toLocaleString('vi-VN')+' lượt\n'+'Tổng lượt đã quay: '+Number(r.totalPlays).toLocaleString('vi-VN');if(r.daily)t+='\nLượt/ngày: '+r.daily.totalDaily+' (miễn phí '+r.daily.freeDaily+', nhiệm vụ '+r.daily.taskDaily+')';if(r.pendingCycleSize)t+='\nChu kỳ kế tiếp: '+Number(r.pendingCycleSize).toLocaleString('vi-VN')+' lượt';$('statusBox').textContent=t;}else $('statusBox').textContent=r.error||'Không tải được trạng thái chu kỳ.';}catch(e){$('statusBox').textContent='Không tải được trạng thái chu kỳ: '+e.message}}
 function renderQuotaSummary(size,q){const used=[0,1,2,3,4].reduce((s,i)=>s+Number(q?.[i]||0),0);$('quotaSummary').textContent='Tổng giải có quà: '+used.toLocaleString('vi-VN')+' · Chúc Bạn May Mắn Lần Sau: '+Math.max(0,Number(size||0)-used).toLocaleString('vi-VN');}
 async function loadCycleConfig(){try{const r=await api('/api/admin/cycle-config');if(r.ok){$('cycleSize').value=r.cycleSize;for(const i of [0,1,2,3,4])$('quota'+i).value=Number(r.quotas?.[i]??0);renderQuotaSummary(r.cycleSize,r.quotas);let text='Hiện tại: '+Number(r.currentPosition).toLocaleString('vi-VN')+'/'+Number(r.cycleSize).toLocaleString('vi-VN')+' lượt';if(r.pendingCycleSize)text+=' · Chu kỳ kế tiếp: '+Number(r.pendingCycleSize).toLocaleString('vi-VN')+' lượt với cấu hình giải mới';show('cycleMsg',text)}}catch(e){show('cycleMsg','Không tải được cấu hình: '+e.message)}}
 for(const id of ['cycleSize','quota0','quota1','quota2','quota3','quota4'])$(id).addEventListener('input',()=>renderQuotaSummary(Number($('cycleSize').value),{0:Number($('quota0').value||0),1:Number($('quota1').value||0),2:Number($('quota2').value||0),3:Number($('quota3').value||0),4:Number($('quota4').value||0)}));
@@ -163,5 +163,17 @@ $('deleteAllBtn').onclick=async()=>{
   }catch(e){show('deleteMsg',e.message)}
 };
 
-if(adminToken){setApp(true);loadPlays();loadCycleConfig();loadStatus();}
+// The server also keeps an HttpOnly cookie, so F5 continues the admin session even
+// when browser storage is cleared. Local/session storage is only a backward-compatible fallback.
+if(adminToken){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();}
+else {
+  // Try the secure cookie silently. A successful status call keeps the admin screen open.
+  (async()=>{
+    try{
+      const r=await api('/api/admin/status');
+      if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();}
+      else setApp(false);
+    }catch(e){setApp(false)}
+  })();
+}
 </script></body></html>
