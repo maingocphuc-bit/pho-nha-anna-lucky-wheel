@@ -90,7 +90,10 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
       <div class="hub" aria-label="Tô phở">🍜</div>
     </div>
     <button id="spin">BẮT ĐẦU QUAY 🎡</button>
-    <p id="turn">Bạn còn 0 lượt quay hôm nay</p><div id="unlockBox" class="hidden" style="margin-top:14px;padding:14px;border:2px dashed #c6a46a;border-radius:14px;background:#fff8df"><b>🔓 Mở khóa lượt quay</b><p style="margin:8px 0;font-size:14px">Nếu quán đã xác nhận điều kiện, hãy quét mã QR mở khóa hoặc nhập mã được quán cung cấp.</p><input id="unlockToken" placeholder="Mã mở khóa" style="margin-top:6px"><button id="scanUnlock" class="scan-btn" type="button">📷 QUÉT QR MỞ KHÓA</button><button id="claimUnlock" style="margin-top:10px;height:48px;font-size:18px">XÁC NHẬN MỞ KHÓA</button><div id="unlockMsg" class="msg"></div></div>
+    <p id="turn">Bạn còn 0 lượt quay hôm nay</p>
+    <div id="extraTurns" class="hidden" style="margin-top:14px">
+      <button id="extraTurnBtn" type="button">THÊM LƯỢT QUAY</button>
+    </div>
     <div class="prizes">
       <div class="prize special-prize">🏆 Ăn miễn phí 2 tô phở / 1 tuần</div>
       <div class="prize special-prize">🍜 1 Tô Phở Miễn Phí 50K</div><div class="prize">🏷️ Giảm giá 5K</div>
@@ -139,62 +142,59 @@ async function restoreSession(){
 function drawWheel(){const cx=350,cy=350,r=340,s=2*Math.PI/6;ctx.clearRect(0,0,700,700);for(let i=0;i<6;i++){const a=-Math.PI/2+i*s,b=a+s;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,b);ctx.closePath();ctx.fillStyle=colors[i];ctx.fill();ctx.strokeStyle='#fff7d5';ctx.lineWidth=7;ctx.stroke();const mid=a+s/2,x=cx+Math.cos(mid)*r*.60,y=cy+Math.sin(mid)*r*.60;ctx.save();ctx.translate(x,y);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='#000b';ctx.shadowBlur=4;ctx.shadowOffsetY=2;ctx.font='900 24px Arial';ctx.fillText(labels[i][0],0,-17);ctx.font='900 21px Arial';ctx.fillText(labels[i][1],0,17);ctx.restore();}ctx.beginPath();ctx.arc(cx,cy,r+1,0,Math.PI*2);ctx.strokeStyle='#ffd96a';ctx.lineWidth=10;ctx.stroke();}
 drawWheel();
 async function post(path,data){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});let b={};try{b=await r.json()}catch(e){}if(!r.ok||b.ok===false)throw new Error(b.error||('Máy chủ trả về lỗi '+r.status));return b;}
-function updateTurn(){document.getElementById('turn').textContent='Bạn còn '+remaining+' lượt quay hôm nay';document.getElementById('spin').disabled=busy||remaining<=0; const need=(remaining>0 && ((remaining===2&&!unlock2)||(remaining===1&&!unlock3))); document.getElementById('unlockBox').classList.toggle('hidden',!need);}
-document.getElementById('continue').onclick=async()=>{const name=document.getElementById('name').value.trim();phone=document.getElementById('phone').value.replace(/\D/g,'');const msg=document.getElementById('msg');msg.textContent='';if(name.length<2||phone.length<9){msg.textContent='Vui lòng nhập họ tên và số điện thoại hợp lệ.';return}const b=document.getElementById('continue');b.disabled=true;try{const r=await post('/api/register',{name,phone});remaining=Number(r.remaining||0);unlock2=!!r.unlock2;unlock3=!!r.unlock3;localStorage.setItem('phoAnnaPlayer',JSON.stringify({name,phone,date:todayKey()}));document.getElementById('register').classList.add('hidden');document.getElementById('game').classList.remove('hidden');updateTurn();document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){msg.textContent=e.message}b.disabled=false;};
-document.getElementById('claimUnlock').onclick=async()=>{const token=document.getElementById('unlockToken').value.trim();const m=document.getElementById('unlockMsg');m.textContent='';try{const r=await post('/api/unlock/claim',{phone,token});if(r.unlockType===2)unlock2=true;if(r.unlockType===3)unlock3=true;m.textContent='Đã mở khóa lượt '+r.unlockType+' thành công.';updateTurn();}catch(e){m.textContent=e.message;}};
-let scanStream=null,scanTimer=null;
-function stopQrScanner(){
-  if(scanTimer){clearInterval(scanTimer);scanTimer=null;}
-  if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}
-  const video=document.getElementById('scanVideo');video.pause();video.srcObject=null;
-  document.getElementById('qrScanner').classList.add('hidden');
-}
-async function claimScannedToken(raw){
-  let token=String(raw||'').trim();
-  try{const u=new URL(token,location.origin);token=u.searchParams.get('unlock')||token;}catch(e){}
-  token=token.trim();
-  if(!token){throw new Error('Không đọc được mã mở khóa từ QR.');}
-  document.getElementById('unlockToken').value=token;
-  stopQrScanner();
-  document.getElementById('claimUnlock').click();
-}
-async function startQrScanner(){
-  const box=document.getElementById('qrScanner'),video=document.getElementById('scanVideo'),status=document.getElementById('scanStatus');
-  box.classList.remove('hidden');status.textContent='Đang xin quyền sử dụng camera...';
-  if(!('BarcodeDetector' in window)){
-    status.textContent='Trình duyệt chưa hỗ trợ quét QR bằng camera. Anh hãy nhập mã mở khóa bên dưới.';
-    return;
+function updateTurn(){
+  document.getElementById('turn').textContent='Bạn còn '+remaining+' lượt quay hôm nay';
+  const firstSpin=(remaining===3);
+  const extra=document.getElementById('extraTurns');
+  const extraBtn=document.getElementById('extraTurnBtn');
+  document.getElementById('spin').classList.toggle('hidden',!firstSpin);
+  document.getElementById('spin').disabled=busy||!firstSpin;
+  const showExtra=(remaining===2||remaining===1);
+  extra.classList.toggle('hidden',!showExtra);
+  if(showExtra){
+    extraBtn.textContent=remaining===2?'THÊM LƯỢT QUAY 2':'THÊM LƯỢT QUAY 3';
+    extraBtn.disabled=busy;
   }
-  try{
-    scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
-    video.srcObject=scanStream;await video.play();
-    const detector=new BarcodeDetector({formats:['qr_code']});
-    status.textContent='Đưa mã QR vào giữa khung hình...';
-    scanTimer=setInterval(async()=>{
-      if(!scanStream||video.readyState<2)return;
-      try{const codes=await detector.detect(video);if(codes.length&&codes[0].rawValue)await claimScannedToken(codes[0].rawValue);}catch(e){}
-    },300);
-  }catch(e){status.textContent='Không mở được camera. Anh hãy cấp quyền camera hoặc nhập mã thủ công.';}
 }
-document.getElementById('scanUnlock').onclick=startQrScanner;
-document.getElementById('closeScanner').onclick=stopQrScanner;
-document.getElementById('qrScanner').addEventListener('click',e=>{if(e.target.id==='qrScanner')stopQrScanner();});
-const incomingUnlock=new URLSearchParams(location.search).get('unlock');if(incomingUnlock){document.getElementById('unlockToken').value=incomingUnlock;}
+async function refreshUnlockState(){
+  const saved=JSON.parse(localStorage.getItem('phoAnnaPlayer')||'null');
+  if(!saved||!saved.name||!phone)return;
+  const r=await post('/api/register',{name:saved.name,phone});
+  remaining=Number(r.remaining||remaining);unlock2=!!r.unlock2;unlock3=!!r.unlock3;
+  updateTurn();
+}
+document.getElementById('continue').onclick=async()=>{const name=document.getElementById('name').value.trim();phone=document.getElementById('phone').value.replace(/\D/g,'');const msg=document.getElementById('msg');msg.textContent='';if(name.length<2||phone.length<9){msg.textContent='Vui lòng nhập họ tên và số điện thoại hợp lệ.';return}const b=document.getElementById('continue');b.disabled=true;try{const r=await post('/api/register',{name,phone});remaining=Number(r.remaining||0);unlock2=!!r.unlock2;unlock3=!!r.unlock3;localStorage.setItem('phoAnnaPlayer',JSON.stringify({name,phone,date:todayKey()}));document.getElementById('register').classList.add('hidden');document.getElementById('game').classList.remove('hidden');updateTurn();document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){msg.textContent=e.message}b.disabled=false;};
+document.getElementById('extraTurnBtn').onclick=async()=>{
+  if(busy||!(remaining===2||remaining===1))return;
+  const type=remaining===2?2:3;
+  try{
+    await refreshUnlockState();
+    const unlocked=type===2?unlock2:unlock3;
+    if(!unlocked){
+      if(type===2) showNotice('🔒 Chưa mở khóa lượt quay thứ 2','Để tham gia <b>lượt quay thứ 2</b>, bạn cần mời ít nhất 1 người bạn cùng đến ăn tại <b>PHỞ NHÀ ANNA</b>. Cả hai người phải có mặt trực tiếp tại quán. <b>Lượt quay thứ 2 áp dụng cho cả 2 người.</b><br><br>Vui lòng nhờ chủ quán/nhân viên kiểm tra điều kiện và <b>mở khóa lượt 2</b> cho bạn.');
+      else showNotice('🔒 Chưa mở khóa lượt quay thứ 3','Để tham gia <b>lượt quay thứ 3</b>, bạn cần chụp hình tô phở và đăng hình đó lên <b>Bài đánh giá của Phở Nhà Anna trên Google</b>. Sau khi quán kiểm tra và xác nhận, nhân viên sẽ <b>mở khóa lượt 3</b> cho bạn.');
+      return;
+    }
+    await doSpin();
+  }catch(e){showNotice('⚠️ Không thể kiểm tra lượt quay',e.message);}
+};
 function showNotice(title,text){document.getElementById('noticeTitle').textContent=title;document.getElementById('noticeText').innerHTML=text;document.getElementById('noticeModal').classList.remove('hidden');}
 function closeNotice(){document.getElementById('noticeModal').classList.add('hidden');}
 document.getElementById('closeNotice').onclick=closeNotice;
 document.getElementById('noticeModal').addEventListener('click',e=>{if(e.target.id==='noticeModal')closeNotice();});
-document.getElementById('spin').onclick=async()=>{
+async function doSpin(){
   if(busy||remaining<=0)return;
   if(remaining===2&&!unlock2){
-    showNotice('🔒 Chưa mở khóa lượt quay thứ 2','Để tham gia <b>lượt quay thứ 2</b>, bạn cần mời ít nhất 1 người bạn cùng đến ăn tại <b>PHỞ NHÀ ANNA</b>. Cả hai người phải có mặt trực tiếp tại quán. <b>Lượt quay thứ 2 áp dụng cho cả 2 người.</b> Quán sẽ xác nhận và mở khóa.<br><br>Vui lòng nhờ nhân viên quán mở khóa trước khi quay.');
+    showNotice('🔒 Chưa mở khóa lượt quay thứ 2','Quán chưa mở khóa lượt 2 cho bạn. Vui lòng nhờ chủ quán/nhân viên kiểm tra điều kiện và mở khóa trước khi quay.');
     return;
   }
   if(remaining===1&&!unlock3){
-    showNotice('🔒 Chưa mở khóa lượt quay thứ 3','Để tham gia <b>lượt quay thứ 3</b>, bạn cần chụp hình tô phở và đăng hình đó lên <b>Bài đánh giá của Phở Nhà Anna trên Google</b>. Sau khi quán kiểm tra và xác nhận, nhân viên sẽ mở khóa lượt quay thứ 3.<br><br>Vui lòng nhờ nhân viên quán xác nhận trước khi quay.');
+    showNotice('🔒 Chưa mở khóa lượt quay thứ 3','Quán chưa mở khóa lượt 3 cho bạn. Vui lòng nhờ chủ quán/nhân viên kiểm tra điều kiện và mở khóa trước khi quay.');
     return;
   }
-  busy=true;const btn=document.getElementById('spin');btn.disabled=true;btn.textContent='ĐANG QUAY...';try{const r=await post('/api/spin',{phone});const idx=Number(r.prizeIndex);if(!Number.isInteger(idx)||idx<0||idx>5)throw new Error('Dữ liệu phần thưởng không hợp lệ.');remaining=Math.max(0,Number(r.remaining||0));const slice=2*Math.PI/6;const target=-(idx*slice+slice/2);let delta=target-angle;while(delta<12*Math.PI)delta+=2*Math.PI;const start=angle,t0=performance.now(),duration=5200;function animate(t){const q=Math.min(1,(t-t0)/duration),e=1-Math.pow(1-q,4);angle=start+delta*e;wheel.style.transform='rotate('+angle+'rad)';if(q<1)requestAnimationFrame(animate);else{busy=false;btn.textContent='BẮT ĐẦU QUAY 🎡';updateTurn();showResult(r);}}requestAnimationFrame(animate);}catch(e){busy=false;btn.textContent='BẮT ĐẦU QUAY 🎡';updateTurn();showNotice('⚠️ Không thể thực hiện lượt quay',e.message);}};
+  busy=true;const btn=document.getElementById('spin');btn.disabled=true;btn.textContent='ĐANG QUAY...';try{const r=await post('/api/spin',{phone});const idx=Number(r.prizeIndex);if(!Number.isInteger(idx)||idx<0||idx>5)throw new Error('Dữ liệu phần thưởng không hợp lệ.');remaining=Math.max(0,Number(r.remaining||0));const slice=2*Math.PI/6;const target=-(idx*slice+slice/2);let delta=target-angle;while(delta<12*Math.PI)delta+=2*Math.PI;const start=angle,t0=performance.now(),duration=5200;function animate(t){const q=Math.min(1,(t-t0)/duration),e=1-Math.pow(1-q,4);angle=start+delta*e;wheel.style.transform='rotate('+angle+'rad)';if(q<1)requestAnimationFrame(animate);else{busy=false;btn.textContent='BẮT ĐẦU QUAY 🎡';updateTurn();showResult(r);}}requestAnimationFrame(animate);}catch(e){busy=false;btn.textContent='BẮT ĐẦU QUAY 🎡';updateTurn();showNotice('⚠️ Không thể thực hiện lượt quay',e.message);}
+}
+document.getElementById('spin').onclick=doSpin;
 function showResult(r){const box=document.getElementById('result');box.classList.remove('hidden');box.classList.toggle('jackpot',!!r.special);document.getElementById('resultTitle').textContent=r.special?'🎉 JACKPOT – GIẢI ĐẶC BIỆT! 🎉':'🎉 Chúc mừng!';document.getElementById('won').textContent='Bạn đã quay trúng: '+r.prize;document.getElementById('code').textContent=r.rewardCode;document.getElementById('qr').src=r.qr;box.scrollIntoView({behavior:'smooth',block:'center'});}
 document.getElementById('back').onclick=()=>{document.getElementById('result').classList.add('hidden');document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});updateTurn();};
 </script>
