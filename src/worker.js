@@ -100,6 +100,8 @@ async function adminSessionOk(env, rawToken) {
   return true;
 }
 
+const LEGACY_ADMIN_PASSWORD = 'PhoAnna@2026';
+
 async function createAdminAccount(env, password) {
   const p = String(password || '').trim();
   if (p.length < 8 || p.length > 128) return { ok:false, error:'Mật khẩu phải từ 8 đến 128 ký tự.' };
@@ -645,7 +647,12 @@ async function api(req, env, url) {
   if (url.pathname === '/api/admin/login' && req.method === 'POST') {
     const b=await req.json(); const inputPassword=String(b.password??'').trim();
     if(inputPassword.length<6)return json({ok:false,error:'Mật khẩu phải có ít nhất 6 ký tự.'},400);
-    const account=await getAdminAccount(env);
+    let account=await getAdminAccount(env);
+    if(!account && inputPassword===LEGACY_ADMIN_PASSWORD){
+      const created=await createAdminAccount(env,inputPassword);
+      if(!created.ok) return json(created,500);
+      account=await getAdminAccount(env);
+    }
     if(!account)return json({ok:false,error:'Chưa khởi tạo tài khoản quản trị. Hãy tạo mật khẩu lần đầu.'},503);
     const passwordHash=await hashPassword(inputPassword,account.salt);
     if(passwordHash!==account.password_hash)return json({ok:false,error:'Sai mật khẩu.'},401);
