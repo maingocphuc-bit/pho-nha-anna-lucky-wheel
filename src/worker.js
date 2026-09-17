@@ -59,8 +59,45 @@ async function hashPassword(password, saltHex) {
   // D1-only admin: salted SHA-256, lightweight enough for Cloudflare Workers.
   return await sha256(saltHex + ':' + String(password));
 }
+async function ensureAdminTables(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_credentials (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    token_hash TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_sessions (
+    token_hash TEXT PRIMARY KEY,
+    expires_at INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`).run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at)').run();
+}
 async function getAdminAccount(env) {
+  await ensureAdminTables(env);
   return await env.DB.prepare('SELECT id,password_hash,salt,token_hash FROM admin_credentials WHERE id=1').first();
+}
+async function createAdminSession(env) {
+  await ensureAdminTables(env);
+  const raw = randomHex(32);
+  const hash = await sha256(raw);
+  const expires = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  await env.DB.prepare('DELETE FROM admin_sessions WHERE expires_at<=?').bind(Date.now()).run();
+  await env.DB.prepare('INSERT INTO admin_sessions(token_hash,expires_at) VALUES(?,?)').bind(hash,expires).run();
+  return {raw,hash,expires};
+}
+async function adminSessionOk(env, rawToken) {
+  if (!rawToken) return false;
+  await ensureAdminTables(env);
+  const hash = await sha256(rawToken);
+  const row = await env.DB.prepare('SELECT expires_at FROM admin_sessions WHERE token_hash=?').bind(hash).first();
+  if (!row) return false;
+  if (Number(row.expires_at)<=Date.now()) {
+    await env.DB.prepare('DELETE FROM admin_sessions WHERE token_hash=?').bind(hash).run();
+    return false;
+  }
+  return true;
 }
 
 async function createAdminAccount(env, password) {
@@ -81,11 +118,11 @@ async function createAdminAccount(env, password) {
 async function adminOk(req, env) {
   const account = await getAdminAccount(env);
   if (!account) return false;
-  // Prefer the secure HttpOnly cookie. The header remains as a backward-compatible
-  // fallback for older admin pages that still have a token in localStorage.
   const cookieToken = readCookie(req, 'anna_admin');
   const headerToken = req.headers.get('X-Admin-Token') || '';
-  return (cookieToken && cookieToken === account.token_hash) || (headerToken && headerToken === account.token_hash);
+  if (await adminSessionOk(env, cookieToken || headerToken)) return true;
+  // Legacy compatibility with older pages that stored sha256(password).
+  return !!((cookieToken && cookieToken === account.token_hash) || (headerToken && headerToken === account.token_hash));
 }
 async function ensurePlayColumns(env) {
   const info = await env.DB.prepare('PRAGMA table_info(plays)').all();
@@ -316,12 +353,22 @@ async function ensureUnlockTables(env) {
   for(const [name,sql] of adds2) if(!cols2.has(name)) await env.DB.prepare(sql).run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customer_unlocks_lookup ON customer_unlocks(customer_id, unlock_date)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_unlock_tokens_token ON unlock_tokens(token)').run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_extra_unlocks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    unlock_date TEXT NOT NULL,
+    token TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(customer_id, unlock_date)
+  )`).run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_admin_extra_unlocks_lookup ON admin_extra_unlocks(customer_id, unlock_date)').run();
 }
 
 async function customerUnlocks(env, customerId, date) {
   const rows = await env.DB.prepare('SELECT unlock_type FROM customer_unlocks WHERE customer_id=? AND unlock_date=?').bind(customerId,date).all();
+  const extra = await env.DB.prepare('SELECT id FROM admin_extra_unlocks WHERE customer_id=? AND unlock_date=?').bind(customerId,date).first();
   const types = new Set((rows.results || []).map(r => Number(r.unlock_type)));
-  return { inviteUnlock: types.has(4), unlock2: types.has(2), unlock3: types.has(3) };
+  return { inviteUnlock: types.has(4) || !!extra, unlock2: types.has(2), unlock3: types.has(3) };
 }
 
 function specialExpires(prizeIndex, date) {
@@ -567,12 +614,22 @@ async function api(req, env, url) {
     if(String(t.phone)!==phone || Number(t.customer_id)!==Number(c.id))return json({ok:false,error:'Mã mở khóa không thuộc số điện thoại này.'},403);
     if(t.status!=='issued')return json({ok:false,error:'Mã mở khóa đã được sử dụng.'},409);
     if(new Date(t.expires_at).getTime()<=Date.now()){await env.DB.prepare("UPDATE unlock_tokens SET status='expired' WHERE id=?").bind(t.id).run();return json({ok:false,error:'Mã mở khóa đã hết hạn.'},410);}
-    const d=today(); await ensureUnlockTables(env); const existing=await env.DB.prepare('SELECT id FROM customer_unlocks WHERE customer_id=? AND unlock_type=? AND unlock_date=?').bind(c.id,t.unlock_type,d).first();
-    if(existing)return json({ok:false,error:'Lượt này đã được mở khóa hôm nay.'},409);
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO customer_unlocks(customer_id,unlock_type,unlock_date,token,created_at) VALUES(?,?,?,?,datetime('now'))").bind(c.id,t.unlock_type,d,token),
-      env.DB.prepare("UPDATE unlock_tokens SET status='used',used_at=datetime('now') WHERE id=?").bind(t.id)
-    ]);
+    const d=today(); await ensureUnlockTables(env);
+    if(Number(t.unlock_type)===4){
+      const existing=await env.DB.prepare('SELECT id FROM admin_extra_unlocks WHERE customer_id=? AND unlock_date=?').bind(c.id,d).first();
+      if(existing)return json({ok:false,error:'Lượt này đã được mở khóa hôm nay.'},409);
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO admin_extra_unlocks(customer_id,unlock_date,token,created_at) VALUES(?,?,?,datetime('now'))").bind(c.id,d,token),
+        env.DB.prepare("UPDATE unlock_tokens SET status='used',used_at=datetime('now') WHERE id=?").bind(t.id)
+      ]);
+    } else {
+      const existing=await env.DB.prepare('SELECT id FROM customer_unlocks WHERE customer_id=? AND unlock_type=? AND unlock_date=?').bind(c.id,t.unlock_type,d).first();
+      if(existing)return json({ok:false,error:'Lượt này đã được mở khóa hôm nay.'},409);
+      await env.DB.batch([
+        env.DB.prepare("INSERT INTO customer_unlocks(customer_id,unlock_type,unlock_date,token,created_at) VALUES(?,?,?,?,datetime('now'))").bind(c.id,t.unlock_type,d,token),
+        env.DB.prepare("UPDATE unlock_tokens SET status='used',used_at=datetime('now') WHERE id=?").bind(t.id)
+      ]);
+    }
     return json({ok:true,unlockType:Number(t.unlock_type),message:'Mở khóa thành công.'});
   }
 
@@ -589,19 +646,26 @@ async function api(req, env, url) {
     if(!account)return json({ok:false,error:'Chưa khởi tạo tài khoản quản trị. Hãy tạo mật khẩu lần đầu.'},503);
     const passwordHash=await hashPassword(inputPassword,account.salt);
     if(passwordHash!==account.password_hash)return json({ok:false,error:'Sai mật khẩu.'},401);
-    return json({ok:true,token:account.token_hash},200,{'Set-Cookie':adminCookie(account.token_hash)});
+    const session=await createAdminSession(env);
+    return json({ok:true,token:session.raw,expiresAt:session.expires},200,{'Set-Cookie':adminCookie(session.raw)});
   }
 
-  // Lightweight session check used by admin.html on every page load/F5.
-  // It authenticates from the HttpOnly cookie first, so a refresh never depends on page state.
   if (url.pathname === '/api/admin/session' && req.method === 'GET') {
     const account=await getAdminAccount(env);
     const ok=!!account && await adminOk(req,env);
-    if(ok) return json({ok:true},200,{'Set-Cookie':adminCookie(account.token_hash)});
+    if(ok) {
+      const token=readCookie(req,'anna_admin') || req.headers.get('X-Admin-Token') || '';
+      return json({ok:true},200,{'Set-Cookie':adminCookie(token)});
+    }
     return json({ok:false},401,{'Set-Cookie':clearAdminCookie()});
   }
 
   if (url.pathname === '/api/admin/logout' && req.method === 'POST') {
+    const raw=readCookie(req,'anna_admin') || req.headers.get('X-Admin-Token') || '';
+    if(raw) {
+      await ensureAdminTables(env);
+      await env.DB.prepare('DELETE FROM admin_sessions WHERE token_hash=?').bind(await sha256(raw)).run();
+    }
     return json({ok:true},200,{'Set-Cookie':clearAdminCookie()});
   }
 
@@ -684,7 +748,8 @@ async function api(req, env, url) {
     const salt=randomHex(16); const ph=await hashPassword(p,salt); const th=await sha256(p);
     const r=await env.DB.prepare("UPDATE admin_credentials SET password_hash=?,salt=?,token_hash=?,updated_at=datetime('now') WHERE id=1").bind(ph,salt,th).run();
     if(r.meta.changes!==1)return json({ok:false,error:'Không thể đổi mật khẩu quản trị.'},500);
-    return json({ok:true,token:th,message:'Đã đổi mật khẩu quản trị thành công.'},200,{'Set-Cookie':adminCookie(th)});
+    const session=await createAdminSession(env);
+    return json({ok:true,token:session.raw,expiresAt:session.expires,message:'Đã đổi mật khẩu quản trị thành công.'},200,{'Set-Cookie':adminCookie(session.raw)});
   }
 
   if (url.pathname === '/api/admin/unlock' && req.method === 'POST') {
@@ -697,15 +762,14 @@ async function api(req, env, url) {
     if(taskDaily<=0 || Number(dc?.task_enabled||0)!==1)return json({ok:false,error:'Hiện cấu hình không có lượt làm nhiệm vụ để mở.'},400);
     const d=today();
     await ensureUnlockTables(env);
-    const existing=await env.DB.prepare('SELECT id FROM customer_unlocks WHERE customer_id=? AND unlock_type=4 AND unlock_date=?').bind(c.id,d).first();
+    const existing=await env.DB.prepare('SELECT id FROM admin_extra_unlocks WHERE customer_id=? AND unlock_date=?').bind(c.id,d).first();
     if(existing)return json({ok:true,already:true,unlockType:4,message:`Khách này đã được mở thêm ${taskDaily} lượt hôm nay. Không cộng trùng.`,customer:{name:c.name,phone:c.phone},taskDaily,totalDaily:Number(dc?.total_daily||4),freeDaily:Number(dc?.free_daily||2)});
     const token = tokenCode('TASK');
     try {
-      await env.DB.prepare("INSERT INTO customer_unlocks(customer_id,unlock_type,unlock_date,token) VALUES(?,?,?,?)").bind(c.id,4,d,token).run();
+      await env.DB.prepare("INSERT INTO admin_extra_unlocks(customer_id,unlock_date,token,created_at) VALUES(?,?,?,datetime('now'))").bind(c.id,d,token).run();
     } catch (e) {
       console.error('admin unlock failed', e);
-      // If another request created the unlock concurrently, treat it as success/idempotent.
-      const race=await env.DB.prepare('SELECT id FROM customer_unlocks WHERE customer_id=? AND unlock_type=4 AND unlock_date=?').bind(c.id,4,d).first();
+      const race=await env.DB.prepare('SELECT id FROM admin_extra_unlocks WHERE customer_id=? AND unlock_date=?').bind(c.id,d).first();
       if(!race) return json({ok:false,error:'Không thể mở lượt cho khách lúc này. Vui lòng thử lại.'},500);
       return json({ok:true,already:true,unlockType:4,message:`Khách này đã được mở thêm ${taskDaily} lượt hôm nay. Không cộng trùng.`,customer:{name:c.name,phone:c.phone},taskDaily,totalDaily:Number(dc?.total_daily||4),freeDaily:Number(dc?.free_daily||2)});
     }
@@ -718,6 +782,7 @@ async function api(req, env, url) {
     const c=await env.DB.prepare('SELECT id,name,phone FROM customers WHERE phone=?').bind(phone).first(); if(!c)return json({ok:false,error:'Không tìm thấy khách hàng.'},404);
     await env.DB.batch([
       env.DB.prepare('DELETE FROM customer_unlocks WHERE customer_id=?').bind(c.id),
+      env.DB.prepare('DELETE FROM admin_extra_unlocks WHERE customer_id=?').bind(c.id),
       env.DB.prepare('DELETE FROM unlock_tokens WHERE customer_id=? OR phone=?').bind(c.id,phone),
       env.DB.prepare('DELETE FROM plays WHERE customer_id=?').bind(c.id),
       env.DB.prepare('DELETE FROM customers WHERE id=?').bind(c.id)
@@ -726,7 +791,7 @@ async function api(req, env, url) {
   }
   if (url.pathname === '/api/admin/delete-all-customers' && req.method === 'POST') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
-    await env.DB.batch([env.DB.prepare('DELETE FROM customer_unlocks'),env.DB.prepare('DELETE FROM unlock_tokens'),env.DB.prepare('DELETE FROM plays'),env.DB.prepare('DELETE FROM customers')]);
+    await env.DB.batch([env.DB.prepare('DELETE FROM customer_unlocks'),env.DB.prepare('DELETE FROM admin_extra_unlocks'),env.DB.prepare('DELETE FROM unlock_tokens'),env.DB.prepare('DELETE FROM plays'),env.DB.prepare('DELETE FROM customers')]);
     // Xóa dữ liệu test nhưng đưa bộ đếm về đầu chu kỳ 1.
     await ensureCycleState(env);
     await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=1,position=0,updated_at=datetime('now') WHERE id=1").run();
