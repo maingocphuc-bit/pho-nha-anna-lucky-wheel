@@ -59,6 +59,18 @@
 <button id="saveCycleBtn">💾 LƯU CẤU HÌNH</button><div id="cycleMsg" class="msg hidden"></div></section>
 
 
+<section class="card passwordCard">
+  <h2>🔑 Đổi mật khẩu quản trị</h2>
+  <p class="small">Đổi mật khẩu đăng nhập Admin. Mật khẩu mới phải có từ 8 đến 128 ký tự.</p>
+  <label>Mật khẩu hiện tại</label>
+  <input id="currentPassword" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu hiện tại">
+  <label>Mật khẩu mới</label>
+  <input id="newPassword" type="password" autocomplete="new-password" placeholder="Nhập mật khẩu mới">
+  <label>Nhập lại mật khẩu mới</label>
+  <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Nhập lại mật khẩu mới">
+  <button id="changePasswordBtn" type="button">🔑 ĐỔI MẬT KHẨU</button>
+  <div id="passwordMsg" class="msg hidden"></div>
+</section>
 <section class="card dangerCard">
   <h2>🗑️ Xóa dữ liệu</h2>
   <p class="small">Dùng để xóa dữ liệu test hoặc xóa riêng một khách hàng. <b>Thao tác xóa không thể hoàn tác.</b></p>
@@ -74,6 +86,7 @@
 <script>
 const $=id=>document.getElementById(id);
 let adminToken=localStorage.getItem('annaAdminToken')||sessionStorage.getItem('annaAdminToken')||'';
+let adminReady=false;
 function show(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}
 function hide(id){$(id).classList.add('hidden')}
 function setApp(on){$('app').classList.toggle('hidden',!on);$('loginCard').classList.toggle('hidden',on)}
@@ -100,7 +113,7 @@ async function bootAdmin(){
   try{
     const r=await api('/api/admin/session',{method:'GET'});
     if(r.ok){
-      setApp(true);
+      adminReady=true; setApp(true);
       await Promise.all([loadPlays(),loadCycleConfig(),loadDailyConfig(),loadStatus()]);
       booting=false; return;
     }
@@ -290,6 +303,11 @@ $('deleteAllBtn').onclick=async()=>{
   }catch(e){show('deleteMsg',e.message)}
 };
 
+window.addEventListener('error',ev=>{
+  const msg=String(ev?.error?.message||ev?.message||'Lỗi JavaScript không xác định');
+  const box=document.getElementById('loginMsg');
+  if(box){box.textContent='Lỗi giao diện Admin: '+msg;box.classList.remove('hidden');}
+});
 bootAdmin();
 // F5/page restore hardening: re-check the server session when the page becomes visible
 // again, but never erase a saved token because of a transient network/D1 failure.
