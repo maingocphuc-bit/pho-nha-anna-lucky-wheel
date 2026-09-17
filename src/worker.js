@@ -59,145 +59,8 @@ async function hashPassword(password, saltHex) {
   // D1-only admin: salted SHA-256, lightweight enough for Cloudflare Workers.
   return await sha256(saltHex + ':' + String(password));
 }
-async function safeSchemaRun(env, sql, attempts = 4) {
-  let last = null;
-  for (let i = 0; i < attempts; i++) {
-    try { return await env.DB.prepare(sql).run(); }
-    catch (e) {
-      last = e;
-      const msg = String(e?.message || e || '').toLowerCase();
-      // Two Admin/API requests can perform the first-time D1 migration at the
-      // same moment. Treat duplicate-column/already-exists as success and retry
-      // transient D1 locking errors instead of turning the API into HTTP 500.
-      if (msg.includes('duplicate column') || msg.includes('already exists')) return null;
-      if (msg.includes('locked') || msg.includes('busy') || msg.includes('conflict')) {
-        await new Promise(r => setTimeout(r, 40 * (i + 1)));
-        continue;
-      }
-      throw e;
-    }
-  }
-  throw last;
-}
-
-async function ensureCoreSchema(env) {
-  // The original project creates customers/plays in the existing D1 database.
-  // This self-healing layer also supports a fresh/partially migrated D1 and,
-  // crucially, makes first-run schema repair safe when several Admin requests
-  // load in parallel after login/F5.
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS customers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    phone TEXT NOT NULL UNIQUE,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`).run();
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS plays (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    customer_id INTEGER NOT NULL,
-    play_date TEXT NOT NULL,
-    prize_index INTEGER NOT NULL,
-    prize_name TEXT NOT NULL,
-    reward_code TEXT NOT NULL UNIQUE,
-    redeemed INTEGER NOT NULL DEFAULT 0,
-    redeemed_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    expires_at TEXT,
-    redemption_count INTEGER NOT NULL DEFAULT 0,
-    cycle600_no INTEGER NOT NULL DEFAULT 1,
-    cycle600_position INTEGER,
-    cycle_no INTEGER,
-    cycle_position INTEGER
-  )`).run();
-
-  const cInfo = await env.DB.prepare('PRAGMA table_info(customers)').all();
-  const cCols = new Set((cInfo.results || []).map(x => String(x.name)));
-  const cAdds = [
-    ['name', 'ALTER TABLE customers ADD COLUMN name TEXT'],
-    ['phone', 'ALTER TABLE customers ADD COLUMN phone TEXT'],
-    ['created_at', "ALTER TABLE customers ADD COLUMN created_at TEXT"],
-    ['updated_at', "ALTER TABLE customers ADD COLUMN updated_at TEXT"]
-  ];
-  for (const [name, sql] of cAdds) if (!cCols.has(name)) await safeSchemaRun(env, sql);
-
-  const pInfo = await env.DB.prepare('PRAGMA table_info(plays)').all();
-  const pCols = new Set((pInfo.results || []).map(x => String(x.name)));
-  const pAdds = [
-    ['customer_id', 'ALTER TABLE plays ADD COLUMN customer_id INTEGER'],
-    ['play_date', 'ALTER TABLE plays ADD COLUMN play_date TEXT'],
-    ['prize_index', 'ALTER TABLE plays ADD COLUMN prize_index INTEGER'],
-    ['prize_name', 'ALTER TABLE plays ADD COLUMN prize_name TEXT'],
-    ['reward_code', 'ALTER TABLE plays ADD COLUMN reward_code TEXT'],
-    ['redeemed', 'ALTER TABLE plays ADD COLUMN redeemed INTEGER NOT NULL DEFAULT 0'],
-    ['redeemed_at', 'ALTER TABLE plays ADD COLUMN redeemed_at TEXT'],
-    ['created_at', "ALTER TABLE plays ADD COLUMN created_at TEXT"],
-    ['expires_at', 'ALTER TABLE plays ADD COLUMN expires_at TEXT'],
-    ['redemption_count', 'ALTER TABLE plays ADD COLUMN redemption_count INTEGER NOT NULL DEFAULT 0'],
-    ['cycle600_no', 'ALTER TABLE plays ADD COLUMN cycle600_no INTEGER NOT NULL DEFAULT 1'],
-    ['cycle600_position', 'ALTER TABLE plays ADD COLUMN cycle600_position INTEGER'],
-    ['cycle_no', 'ALTER TABLE plays ADD COLUMN cycle_no INTEGER'],
-    ['cycle_position', 'ALTER TABLE plays ADD COLUMN cycle_position INTEGER']
-  ];
-  for (const [name, sql] of pAdds) if (!pCols.has(name)) await safeSchemaRun(env, sql);
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)').run();
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_customer_date ON plays(customer_id,play_date)').run();
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_cycle ON plays(cycle600_no,cycle600_position)').run();
-}
-
-async function ensureAdminSchema(env) {
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_credentials (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    password_hash TEXT,
-    salt TEXT,
-    token_hash TEXT,
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`).run();
-  const info=await env.DB.prepare('PRAGMA table_info(admin_credentials)').all();
-  const cols=new Set((info.results||[]).map(x=>String(x.name)));
-  const adds=[
-    ['password_hash','ALTER TABLE admin_credentials ADD COLUMN password_hash TEXT'],
-    ['salt','ALTER TABLE admin_credentials ADD COLUMN salt TEXT'],
-    ['token_hash','ALTER TABLE admin_credentials ADD COLUMN token_hash TEXT'],
-    ['updated_at',"ALTER TABLE admin_credentials ADD COLUMN updated_at TEXT"]
-  ];
-  for(const [name,sql] of adds) if(!cols.has(name)) await safeSchemaRun(env,sql);
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_sessions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    token_hash TEXT NOT NULL UNIQUE,
-    expires_at TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`).run();
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON admin_sessions(token_hash)').run();
-}
-
 async function getAdminAccount(env) {
-  await ensureAdminSchema(env);
   return await env.DB.prepare('SELECT id,password_hash,salt,token_hash FROM admin_credentials WHERE id=1').first();
-}
-
-async function createAdminSession(env) {
-  await ensureAdminSchema(env);
-  const raw=randomHex(32);
-  const hash=await sha256(raw);
-  const expires=new Date(Date.now()+30*86400000).toISOString();
-  await env.DB.prepare('DELETE FROM admin_sessions WHERE expires_at <= ?').bind(new Date().toISOString()).run();
-  await env.DB.prepare('INSERT INTO admin_sessions(token_hash,expires_at) VALUES(?,?)').bind(hash,expires).run();
-  return {raw,hash,expires};
-}
-
-async function adminSessionOk(req,env) {
-  await ensureAdminSchema(env);
-  const rawCookie=readCookie(req,'anna_admin_session');
-  const rawHeader=req.headers.get('X-Admin-Token')||'';
-  // Test cookie and header independently. A stale cookie must never mask a valid
-  // localStorage/header session token after F5 or a previous deployment.
-  for (const raw of [rawCookie, rawHeader]) {
-    if (!raw) continue;
-    const h = await sha256(raw);
-    const row = await env.DB.prepare('SELECT id FROM admin_sessions WHERE token_hash=? AND expires_at > ?').bind(h, new Date().toISOString()).first();
-    if (row) return true;
-  }
-  return false;
 }
 
 async function createAdminAccount(env, password) {
@@ -216,16 +79,23 @@ async function createAdminAccount(env, password) {
 }
 
 async function adminOk(req, env) {
-  if(await adminSessionOk(req,env)) return true;
-  // Backward compatibility with the previous token scheme.
-  const account=await getAdminAccount(env);
-  if(!account)return false;
-  const legacyCookie=readCookie(req,'anna_admin');
-  const legacyHeader=req.headers.get('X-Admin-Token')||'';
-  return (legacyCookie && legacyCookie===account.token_hash) || (legacyHeader && legacyHeader===account.token_hash);
+  const account = await getAdminAccount(env);
+  if (!account) return false;
+  // Prefer the secure HttpOnly cookie. The header remains as a backward-compatible
+  // fallback for older admin pages that still have a token in localStorage.
+  const cookieToken = readCookie(req, 'anna_admin');
+  const headerToken = req.headers.get('X-Admin-Token') || '';
+  return (cookieToken && cookieToken === account.token_hash) || (headerToken && headerToken === account.token_hash);
 }
 async function ensurePlayColumns(env) {
-  await ensureCoreSchema(env);
+  const info = await env.DB.prepare('PRAGMA table_info(plays)').all();
+  const cols = new Set((info.results || []).map(x => String(x.name)));
+  const adds = [];
+  if (!cols.has('redemption_count')) adds.push("ALTER TABLE plays ADD COLUMN redemption_count INTEGER NOT NULL DEFAULT 0");
+  if (!cols.has('expires_at')) adds.push("ALTER TABLE plays ADD COLUMN expires_at TEXT");
+  if (!cols.has('cycle600_no')) adds.push("ALTER TABLE plays ADD COLUMN cycle600_no INTEGER NOT NULL DEFAULT 1");
+  if (!cols.has('cycle600_position')) adds.push("ALTER TABLE plays ADD COLUMN cycle600_position INTEGER");
+  for (const sql of adds) await env.DB.prepare(sql).run();
 }
 
 async function ensureDailyConfig(env) {
@@ -276,7 +146,7 @@ async function ensureCycleConfig(env) {
     ['pending_quota_prize3', 'ALTER TABLE cycle_config ADD COLUMN pending_quota_prize3 INTEGER'],
     ['pending_quota_prize4', 'ALTER TABLE cycle_config ADD COLUMN pending_quota_prize4 INTEGER']
   ];
-  for (const [name,sql] of adds) if (!cols.has(name)) await safeSchemaRun(env,sql);
+  for (const [name,sql] of adds) if (!cols.has(name)) await env.DB.prepare(sql).run();
   await env.DB.prepare(`INSERT OR IGNORE INTO cycle_config(
     id,cycle_size,pending_cycle_size,quota_prize0,quota_prize1,quota_prize2,quota_prize3,quota_prize4,
     pending_quota_prize0,pending_quota_prize1,pending_quota_prize2,pending_quota_prize3,pending_quota_prize4
@@ -403,6 +273,34 @@ async function ensureCycleState(env) {
 }
 
 
+async function ensureSpinLocks(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS spin_locks (
+    customer_id INTEGER NOT NULL,
+    play_date TEXT NOT NULL,
+    locked_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY(customer_id, play_date)
+  )`).run();
+}
+
+async function acquireSpinLock(env, customerId, date) {
+  await ensureSpinLocks(env);
+  // A stale lock can only survive a crashed request; allow recovery after 30s.
+  await env.DB.prepare("DELETE FROM spin_locks WHERE customer_id=? AND play_date=? AND datetime(locked_at) < datetime('now','-30 seconds')")
+    .bind(customerId, date).run();
+  try {
+    const r = await env.DB.prepare("INSERT INTO spin_locks(customer_id,play_date,locked_at) VALUES(?,?,datetime('now'))")
+      .bind(customerId, date).run();
+    return r.meta.changes === 1;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function releaseSpinLock(env, customerId, date) {
+  try { await env.DB.prepare('DELETE FROM spin_locks WHERE customer_id=? AND play_date=?').bind(customerId,date).run(); } catch(e) {}
+}
+
+
 async function ensureUnlockTables(env) {
   // Repair/extend old D1 schemas as well as creating new tables. Existing rows
   // are preserved. Older versions did not always have token/created_at fields.
@@ -443,7 +341,7 @@ async function ensureUnlockTables(env) {
     ['created_at','ALTER TABLE unlock_tokens ADD COLUMN created_at TEXT'],
     ['used_at','ALTER TABLE unlock_tokens ADD COLUMN used_at TEXT']
   ];
-  for(const [name,sql] of adds2) if(!cols2.has(name)) await safeSchemaRun(env,sql);
+  for(const [name,sql] of adds2) if(!cols2.has(name)) await env.DB.prepare(sql).run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customer_unlocks_lookup ON customer_unlocks(customer_id, unlock_date)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_unlock_tokens_token ON unlock_tokens(token)').run();
 }
@@ -461,94 +359,63 @@ function specialExpires(prizeIndex, date) {
   return null;
 }
 
-async function ensureSpinLock(env) {
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS spin_lock (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    token TEXT,
-    expires_ms INTEGER NOT NULL DEFAULT 0
-  )`).run();
-  await env.DB.prepare('INSERT OR IGNORE INTO spin_lock(id,token,expires_ms) VALUES(1,NULL,0)').run();
-}
-
-async function acquireSpinLock(env) {
-  await ensureSpinLock(env);
-  const token=randomHex(16);
-  const now=Date.now(); const until=now+15000;
-  const r=await env.DB.prepare('UPDATE spin_lock SET token=?,expires_ms=? WHERE id=1 AND expires_ms < ?').bind(token,until,now).run();
-  return Number(r?.meta?.changes||0)===1 ? token : null;
-}
-
-async function releaseSpinLock(env,token) {
-  if(!token)return;
-  await env.DB.prepare('UPDATE spin_lock SET token=NULL,expires_ms=0 WHERE id=1 AND token=?').bind(token).run();
-}
-
-async function reconcileCycleState(env) {
+async function syncCycleState(env) {
   await ensurePlayColumns(env);
   await ensureCycleState(env);
-  await ensureCycleConfig(env);
-  let state=await env.DB.prepare('SELECT cycle_no,position FROM cycle_state_dynamic WHERE id=1').first();
-  let cycleNo=Math.max(1,Number(state?.cycle_no||1));
-  let position=Math.max(0,Number(state?.position||0));
-  let cfg=await getCycleConfig(env);
-  let size=Math.max(100,Number(cfg?.cycle_size||BASE_CYCLE_SIZE));
-
-  // The successful play rows are the source of truth. Older builds advanced the
-  // counter before INSERT, so the counter could say 30 while plays contained 26.
-  // Repair the latest cycle's positions from the actual rows, without inventing
-  // or deleting any play.
-  const latestRow=await env.DB.prepare('SELECT MAX(cycle600_no) AS cycle_no FROM plays').first();
-  const latestCycle=Number(latestRow?.cycle_no||0);
-  if(latestCycle>0){
-    const latestCountRow=await env.DB.prepare('SELECT COUNT(*) AS n, MAX(cycle600_position) AS max_pos FROM plays WHERE cycle600_no=?').bind(latestCycle).first();
-    const latestCount=Number(latestCountRow?.n||0);
-    const latestMax=Number(latestCountRow?.max_pos||0);
-    if(latestMax!==latestCount){
-      // Compact only the broken/latest cycle. Reward data itself is untouched.
-      await env.DB.prepare(`UPDATE plays SET cycle600_position=(
-        SELECT COUNT(*) FROM plays p2 WHERE p2.cycle600_no=plays.cycle600_no AND p2.id<=plays.id
-      ) WHERE cycle600_no=?`).bind(latestCycle).run();
-    }
-    // Always anchor the active cycle to the latest real play cycle. This also
-    // repairs a legacy state that was advanced to the next cycle by a failed spin.
-    cycleNo=latestCycle;
-    position=latestCount;
-  } else {
-    cycleNo=1; position=0;
+  const state = await env.DB.prepare('SELECT cycle_no,position FROM cycle_state_dynamic WHERE id=1').first();
+  if (!state) return null;
+  const config = await getCycleConfig(env);
+  const maxRow = await env.DB.prepare('SELECT MAX(cycle600_no) AS cycle_no, MAX(cycle600_position) AS position FROM plays WHERE cycle600_no=(SELECT MAX(cycle600_no) FROM plays)').first();
+  const maxCycle = Number(maxRow?.cycle_no || 0);
+  const maxPosition = Number(maxRow?.position || 0);
+  let cycleNo = Number(state.cycle_no || 1);
+  let position = Number(state.position || 0);
+  if (maxCycle > cycleNo || (maxCycle === cycleNo && maxPosition > position)) {
+    cycleNo = maxCycle;
+    position = maxPosition;
+    await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=?,position=?,updated_at=datetime('now') WHERE id=1").bind(cycleNo,position).run();
   }
-
-  // A completed cycle starts the next cycle. Pending size/quota changes become
-  // active only here, never halfway through a cycle.
-  if(position>=size){
-    cycleNo=Math.max(cycleNo,latestCycle||cycleNo)+1;
-    position=0;
-    if(cfg?.pending_cycle_size){
-      await env.DB.prepare(`UPDATE cycle_config SET
-        cycle_size=COALESCE(pending_cycle_size,cycle_size),
-        pending_cycle_size=NULL,
-        quota_prize0=COALESCE(pending_quota_prize0,quota_prize0),
-        quota_prize1=COALESCE(pending_quota_prize1,quota_prize1),
-        quota_prize2=COALESCE(pending_quota_prize2,quota_prize2),
-        quota_prize3=COALESCE(pending_quota_prize3,quota_prize3),
-        quota_prize4=COALESCE(pending_quota_prize4,quota_prize4),
-        pending_quota_prize0=NULL,pending_quota_prize1=NULL,pending_quota_prize2=NULL,pending_quota_prize3=NULL,pending_quota_prize4=NULL,
-        updated_at=datetime('now') WHERE id=1`).run();
-      cfg=await getCycleConfig(env);
-      size=Math.max(100,Number(cfg?.cycle_size||BASE_CYCLE_SIZE));
-    }
-  }
-  await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=?,position=?,updated_at=datetime('now') WHERE id=1").bind(cycleNo,position).run();
-  return {cycleNo,position,cycleSize:size,pendingCycleSize:cfg?.pending_cycle_size?Number(cfg.pending_cycle_size):null,quotas:quotaObject(cfg)};
+  return {cycleNo,position,cycleSize:Number(config?.cycle_size||BASE_CYCLE_SIZE),pendingCycleSize:config?.pending_cycle_size?Number(config.pending_cycle_size):null,quotas:quotaObject(config),pendingQuotas:quotaObject(config,true)};
 }
 
-async function nextCyclePosition(env) {
-  const s=await reconcileCycleState(env);
-  return {cycle_no:Number(s.cycleNo),position:Number(s.position)+1,cycle_size:Number(s.cycleSize),quotas:s.quotas};
-}
-
-async function commitCyclePosition(env,cycleNo,position) {
-  await ensureCycleState(env);
-  await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=?,position=?,updated_at=datetime('now') WHERE id=1").bind(cycleNo,position).run();
+async function reserveCyclePosition(env) {
+  await syncCycleState(env);
+  // Atomic counter update. If the current cycle is complete, the pending size becomes active for the new cycle.
+  const result = await env.DB.prepare(`
+    UPDATE cycle_state_dynamic
+    SET cycle_no = CASE
+      WHEN position >= (SELECT cycle_size FROM cycle_config WHERE id=1)
+        THEN cycle_no + 1
+      ELSE cycle_no
+    END,
+    position = CASE
+      WHEN position >= (SELECT cycle_size FROM cycle_config WHERE id=1)
+        THEN 1
+      ELSE position + 1
+    END,
+    updated_at = datetime('now')
+    WHERE id=1
+    RETURNING cycle_no, position
+  `).run();
+  const row = result?.results?.[0];
+  if (!row) return null;
+  const cycleNo = Number(row.cycle_no), position = Number(row.position);
+  // Apply pending size only after a new cycle has started.
+  const config = await getCycleConfig(env);
+  if (position === 1 && cycleNo > 1 && config?.pending_cycle_size) {
+    await env.DB.prepare(`UPDATE cycle_config SET
+      cycle_size=COALESCE(pending_cycle_size,cycle_size),
+      pending_cycle_size=NULL,
+      quota_prize0=COALESCE(pending_quota_prize0,quota_prize0),
+      quota_prize1=COALESCE(pending_quota_prize1,quota_prize1),
+      quota_prize2=COALESCE(pending_quota_prize2,quota_prize2),
+      quota_prize3=COALESCE(pending_quota_prize3,quota_prize3),
+      quota_prize4=COALESCE(pending_quota_prize4,quota_prize4),
+      pending_quota_prize0=NULL,pending_quota_prize1=NULL,pending_quota_prize2=NULL,pending_quota_prize3=NULL,pending_quota_prize4=NULL,
+      updated_at=datetime('now') WHERE id=1`).run();
+  }
+  const fresh = await getCycleConfig(env);
+  return {cycle_no:cycleNo, position, cycle_size:Number(fresh?.cycle_size||BASE_CYCLE_SIZE), quotas:quotaObject(fresh)};
 }
 
 async function specialHistory(env, customerId) {
@@ -560,13 +427,27 @@ async function specialHistory(env, customerId) {
 async function api(req, env, url) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
-  // Ensure the two business tables exist before any endpoint touches them.
-  // This is idempotent and safe under concurrent Admin page loading.
-  await ensureCoreSchema(env);
-
   if (url.pathname === '/api/daily-config' && req.method === 'GET') {
     const dc=await getDailyConfig(env);
     return json({ok:true,totalDaily:Number(dc?.total_daily||4),freeDaily:Number(dc?.free_daily||2),taskDaily:Number(dc?.task_daily||2),taskEnabled:Number(dc?.task_enabled||0)===1,taskLabel:String(dc?.task_label||'')});
+  }
+
+  if (url.pathname === '/api/player-state' && req.method === 'GET') {
+    const phone = normPhone(url.searchParams.get('phone'));
+    if (phone.length < 9 || phone.length > 12) return json({ok:false,error:'Số điện thoại không hợp lệ.'},400);
+    const c = await env.DB.prepare('SELECT id,name,phone FROM customers WHERE phone=?').bind(phone).first();
+    if (!c) return json({ok:false,error:'Khách chưa đăng ký.'},404);
+    const d = today();
+    const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE customer_id=? AND play_date=?').bind(c.id,d).first();
+    await ensureUnlockTables(env);
+    const unlocks = await customerUnlocks(env,c.id,d);
+    const dc = await getDailyConfig(env);
+    const totalDaily = Math.max(1, Number(dc?.total_daily ?? 4));
+    const freeDaily = Math.min(totalDaily, Math.max(0, Number(dc?.free_daily ?? 2)));
+    const taskDaily = Math.min(Math.max(0,totalDaily-freeDaily), Math.max(0,Number(dc?.task_daily ?? 2)));
+    const taskEnabled = Number(dc?.task_enabled ?? 1) === 1;
+    const used = Number(row?.n || 0);
+    return json({ok:true,customer:{id:c.id,name:c.name},used,remaining:Math.max(0,totalDaily-used),totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),unlockedExtra:unlocks.inviteUnlock?taskDaily:0,...unlocks});
   }
 
   if (url.pathname === '/api/register' && req.method === 'POST') {
@@ -601,11 +482,20 @@ async function api(req, env, url) {
     if (used >= totalDaily) return json({ok:false,error:`Hôm nay khách đã hết ${totalDaily} lượt quay.`},429);
     if (taskEnabled && used >= freeDaily && taskDaily > 0 && !unlocks.inviteUnlock) return json({ok:false,code:'INVITE_UNLOCK',error:`Khách cần hoàn thành nhiệm vụ để mở thêm ${taskDaily} lượt.`,totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),...unlocks},403);
 
-    const lock=await acquireSpinLock(env);
-    if(!lock)return json({ok:false,error:'Hệ thống đang xử lý một lượt quay khác. Vui lòng chờ vài giây rồi thử lại.'},409);
+    // Prevent double-clicks, multiple tabs, and near-simultaneous requests from
+    // consuming more than one daily turn for the same customer.
+    const lockAcquired = await acquireSpinLock(env,c.id,d);
+    if (!lockAcquired) return json({ok:false,code:'SPIN_IN_PROGRESS',error:'Lượt quay trước đang được xử lý. Vui lòng chờ vài giây.'},409);
+    let spinLockHeld = true;
     try {
+      const verify = await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE customer_id=? AND play_date=?').bind(c.id,d).first();
+      const usedNow = Number(verify?.n || 0);
+      if (usedNow >= totalDaily) return json({ok:false,error:`Hôm nay khách đã hết ${totalDaily} lượt quay.`},429);
+      if (taskEnabled && usedNow >= freeDaily && taskDaily > 0 && !unlocks.inviteUnlock) return json({ok:false,code:'INVITE_UNLOCK',error:`Khách cần hoàn thành nhiệm vụ để mở thêm ${taskDaily} lượt.`,totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),...unlocks},403);
+
     const history = await specialHistory(env,c.id);
-    const reserved = await nextCyclePosition(env);
+    await ensureCycleState(env);
+    const reserved = await reserveCyclePosition(env);
     if (!reserved) return json({ok:false,error:'Không thể cấp lượt trong bộ đếm chu kỳ.'},500);
     const cycleNo = Number(reserved.cycle_no), cyclePosition = Number(reserved.position), cycleSize = Number(reserved.cycle_size||BASE_CYCLE_SIZE);
 
@@ -661,18 +551,25 @@ async function api(req, env, url) {
     // Không cho một khách sở hữu cả hai giải đặc biệt.
     if ((i===0 && history.has1) || (i===1 && history.has0)) i = 5;
 
+    // Safety rule: never allow three winning spins in a row globally.
+    // Prize indexes 0..4 are wins; index 5 is the consolation result.
+    const recent = await env.DB.prepare('SELECT prize_index FROM plays ORDER BY id DESC LIMIT 2').all();
+    const recentWins = (recent.results||[]).length === 2 && (recent.results||[]).every(x => Number(x.prize_index) >= 0 && Number(x.prize_index) <= 4);
+    if (recentWins) i = 5;
+
     const rewardCode = tokenCode('ANNA'); const p = PRIZES[i]; const expiresAt = specialExpires(i,d);
-    let qr; try { qr=makeQrDataUrl(rewardCode); } catch(e) { console.error(e); return json({ok:false,error:'Tạo mã QR thất bại.'},500); }
     await env.DB.prepare(`INSERT INTO plays
       (customer_id,play_date,prize_index,prize_name,reward_code,expires_at,cycle_no,cycle_position,cycle600_no,cycle600_position)
       VALUES(?,?,?,?,?,?,?,?,?,?)`)
       .bind(c.id,d,i,p.name,rewardCode,expiresAt,cycleNo,cyclePosition,cycleNo,cyclePosition).run();
-    await commitCyclePosition(env,cycleNo,cyclePosition);
-    return json({ok:true,prizeIndex:i,prize:p.name,special:p.special,rewardCode,qr,
+    let qr; try { qr=makeQrDataUrl(rewardCode); } catch(e) { console.error(e); return json({ok:false,error:'Tạo mã QR thất bại.'},500); }
+    const response = json({ok:true,prizeIndex:i,prize:p.name,special:p.special,rewardCode,qr,
       specialTerms:i===0?'Có hiệu lực 7 ngày; tối đa 1 tô/ngày; giá trị tối đa 50.000đ/tô; phần vượt quá khách tự thanh toán.':i===1?'Có hiệu lực 2 ngày; áp dụng cho 1 tô phở tối đa 50.000đ.':i===2?'Có hiệu lực 1 ngày.':i===3?'Có hiệu lực 1 ngày.':i===4?'Có hiệu lực 1 ngày.':'',
-      remaining:Math.max(0,totalDaily-(used+1)),totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),cycleNo,cyclePosition});
+      remaining:Math.max(0,totalDaily-(usedNow+1)),totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),cycleNo,cyclePosition});
+    await releaseSpinLock(env,c.id,d); spinLockHeld=false;
+    return response;
     } finally {
-      await releaseSpinLock(env,lock);
+      if (spinLockHeld) await releaseSpinLock(env,c.id,d);
     }
   }
 
@@ -697,58 +594,37 @@ async function api(req, env, url) {
   if (url.pathname === '/api/admin/setup' && req.method === 'POST') {
     const b = await req.json();
     const result = await createAdminAccount(env, b.password);
-    if(!result.ok)return json(result,400);
-    const session=await createAdminSession(env);
-    return json({ok:true,token:session.raw,message:'Đã khởi tạo tài khoản quản trị.'},200,{'Set-Cookie':`anna_admin_session=${encodeURIComponent(session.raw)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`});
+    return json(result, result.ok ? 200 : 400);
   }
 
   if (url.pathname === '/api/admin/login' && req.method === 'POST') {
     const b=await req.json(); const inputPassword=String(b.password??'').trim();
     if(inputPassword.length<6)return json({ok:false,error:'Mật khẩu phải có ít nhất 6 ký tự.'},400);
-    await ensureAdminSchema(env);
-    let account=await getAdminAccount(env);
-    // First-run compatibility: if ADMIN_PASSWORD is configured as a Worker Secret,
-    // initialize the D1 admin account automatically.
-    if((!account || !account.password_hash || !account.salt || !account.token_hash) && env.ADMIN_PASSWORD){
-      const p=String(env.ADMIN_PASSWORD).trim();
-      const salt=randomHex(16); const ph=await hashPassword(p,salt); const th=await sha256(p);
-      await env.DB.prepare("INSERT INTO admin_credentials(id,password_hash,salt,token_hash,updated_at) VALUES(1,?,?,?,datetime('now')) ON CONFLICT(id) DO UPDATE SET password_hash=excluded.password_hash,salt=excluded.salt,token_hash=excluded.token_hash,updated_at=datetime('now')").bind(ph,salt,th).run();
-      account=await getAdminAccount(env);
-    }
-    if(!account)return json({ok:false,error:'Chưa khởi tạo tài khoản quản trị. Hãy cấu hình Secret ADMIN_PASSWORD hoặc dùng chức năng khởi tạo tài khoản.'},503);
+    const account=await getAdminAccount(env);
+    if(!account)return json({ok:false,error:'Chưa khởi tạo tài khoản quản trị. Hãy tạo mật khẩu lần đầu.'},503);
     const passwordHash=await hashPassword(inputPassword,account.salt);
     if(passwordHash!==account.password_hash)return json({ok:false,error:'Sai mật khẩu.'},401);
-    const session=await createAdminSession(env);
-    return json({ok:true,token:session.raw},200,{'Set-Cookie':`anna_admin_session=${encodeURIComponent(session.raw)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`});
+    return json({ok:true,token:account.token_hash},200,{'Set-Cookie':adminCookie(account.token_hash)});
   }
 
+  // Lightweight session check used by admin.html on every page load/F5.
+  // It authenticates from the HttpOnly cookie first, so a refresh never depends on page state.
   if (url.pathname === '/api/admin/session' && req.method === 'GET') {
-    const ok=await adminOk(req,env);
-    if(ok){
-      const candidates=[readCookie(req,'anna_admin_session'),req.headers.get('X-Admin-Token')||''];
-      for(const raw of candidates){
-        if(!raw) continue;
-        const h=await sha256(raw);
-        const row=await env.DB.prepare('SELECT expires_at FROM admin_sessions WHERE token_hash=? AND expires_at > ?').bind(h,new Date().toISOString()).first();
-        if(row)return json({ok:true},200,{'Set-Cookie':`anna_admin_session=${encodeURIComponent(raw)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`});
-      }
-      const account=await getAdminAccount(env);
-      return json({ok:true},200,{'Set-Cookie':account?adminCookie(account.token_hash):clearAdminCookie()});
-    }
-    return json({ok:false,error:'Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.'},401,{'Set-Cookie':clearAdminCookie()});
+    const account=await getAdminAccount(env);
+    const ok=!!account && await adminOk(req,env);
+    if(ok) return json({ok:true},200,{'Set-Cookie':adminCookie(account.token_hash)});
+    return json({ok:false},401,{'Set-Cookie':clearAdminCookie()});
   }
 
   if (url.pathname === '/api/admin/logout' && req.method === 'POST') {
-    const raw=readCookie(req,'anna_admin_session');
-    if(raw){const h=await sha256(raw); await env.DB.prepare('DELETE FROM admin_sessions WHERE token_hash=?').bind(h).run();}
-    return json({ok:true},200,{'Set-Cookie':clearAdminCookie()+'; '+`anna_admin_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`});
+    return json({ok:true},200,{'Set-Cookie':clearAdminCookie()});
   }
 
   if (url.pathname === '/api/admin/status' && req.method === 'GET') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
     await ensurePlayColumns(env);
     await ensureCycleState(env);
-    const synced=await reconcileCycleState(env);
+    const synced=await syncCycleState(env);
     const state=await env.DB.prepare('SELECT cycle_no,position,updated_at FROM cycle_state_dynamic WHERE id=1').first();
     const total=await env.DB.prepare('SELECT COUNT(*) AS n FROM plays').first();
     const cycle=await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE cycle600_no=?').bind(Number(state.cycle_no)).first();
@@ -780,7 +656,7 @@ async function api(req, env, url) {
 
   if (url.pathname === '/api/admin/cycle-config' && req.method === 'GET') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
-    const s=await reconcileCycleState(env); const c=await getCycleConfig(env);
+    const s=await syncCycleState(env); const c=await getCycleConfig(env);
     const quotas=quotaObject(c), pendingQuotas=quotaObject(c,true);
     return json({ok:true,cycleNo:Number(s?.cycleNo||1),currentPosition:Number(s?.position||0),cycleSize:Number(c?.cycle_size||BASE_CYCLE_SIZE),pendingCycleSize:c?.pending_cycle_size?Number(c.pending_cycle_size):null,quotas,pendingQuotas,consolation:Number(c?.cycle_size||BASE_CYCLE_SIZE)-Object.values(quotas).reduce((a,b)=>a+b,0)});
   }
@@ -869,7 +745,7 @@ async function api(req, env, url) {
     // Xóa dữ liệu test nhưng đưa bộ đếm về đầu chu kỳ 1.
     await ensureCycleState(env);
     await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=1,position=0,updated_at=datetime('now') WHERE id=1").run();
-    await env.DB.prepare("UPDATE cycle_config SET cycle_size=COALESCE(pending_cycle_size,cycle_size),pending_cycle_size=NULL,quota_prize0=COALESCE(pending_quota_prize0,quota_prize0),quota_prize1=COALESCE(pending_quota_prize1,quota_prize1),quota_prize2=COALESCE(pending_quota_prize2,quota_prize2),quota_prize3=COALESCE(pending_quota_prize3,quota_prize3),quota_prize4=COALESCE(pending_quota_prize4,quota_prize4),pending_quota_prize0=NULL,pending_quota_prize1=NULL,pending_quota_prize2=NULL,pending_quota_prize3=NULL,pending_quota_prize4=NULL,updated_at=datetime('now') WHERE id=1").run();
+    await env.DB.prepare("UPDATE cycle_config SET cycle_size=COALESCE(pending_cycle_size,cycle_size),pending_cycle_size=NULL,updated_at=datetime('now') WHERE id=1").run();
     const cfg=await getCycleConfig(env);
     return json({ok:true,message:`Đã xóa toàn bộ khách hàng và dữ liệu liên quan; bộ đếm đã về 0/${Number(cfg.cycle_size||600).toLocaleString('vi-VN')}.`});
   }
