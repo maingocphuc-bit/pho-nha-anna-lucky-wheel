@@ -120,7 +120,10 @@ async function adminOk(req, env) {
   if (!account) return false;
   const cookieToken = readCookie(req, 'anna_admin');
   const headerToken = req.headers.get('X-Admin-Token') || '';
-  if (await adminSessionOk(env, cookieToken || headerToken)) return true;
+  // IMPORTANT: try cookie and header independently. A stale cookie must not
+  // mask a valid localStorage token after F5.
+  if (cookieToken && await adminSessionOk(env, cookieToken)) return true;
+  if (headerToken && headerToken !== cookieToken && await adminSessionOk(env, headerToken)) return true;
   // Legacy compatibility with older pages that stored sha256(password).
   return !!((cookieToken && cookieToken === account.token_hash) || (headerToken && headerToken === account.token_hash));
 }
@@ -654,13 +657,22 @@ async function api(req, env, url) {
     const account=await getAdminAccount(env);
     const ok=!!account && await adminOk(req,env);
     if(ok) {
-      const token=readCookie(req,'anna_admin') || req.headers.get('X-Admin-Token') || '';
+      const cookieToken=readCookie(req,'anna_admin');
+      const headerToken=req.headers.get('X-Admin-Token') || '';
+      // Prefer whichever token is actually valid. This repairs the common
+      // F5 case where an old cookie survives while localStorage has the new token.
+      let token='';
+      if(cookieToken && await adminSessionOk(env,cookieToken)) token=cookieToken;
+      else if(headerToken && await adminSessionOk(env,headerToken)) token=headerToken;
+      else if(cookieToken && cookieToken===account.token_hash) token=cookieToken;
+      else if(headerToken && headerToken===account.token_hash) token=headerToken;
+      if(!token) return json({ok:false},401,{'Set-Cookie':clearAdminCookie()});
       // Sliding 30-day session: an active admin session is extended on F5.
       const tokenHash=await sha256(token);
       const nextExpiry=Date.now()+30*24*60*60*1000;
       await ensureAdminTables(env);
       await env.DB.prepare('UPDATE admin_sessions SET expires_at=? WHERE token_hash=?').bind(nextExpiry,tokenHash).run();
-      return json({ok:true,expiresAt:nextExpiry},200,{'Set-Cookie':adminCookie(token)});
+      return json({ok:true,token:token,expiresAt:nextExpiry},200,{'Set-Cookie':adminCookie(token)});
     }
     return json({ok:false},401,{'Set-Cookie':clearAdminCookie()});
   }
