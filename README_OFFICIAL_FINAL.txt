@@ -10,11 +10,11 @@ BẢN CHẠY CHÍNH THỨC
    - 1 Ly Trà Gừng Mát Lạnh: 25
    - Còn lại: Chúc Bạn May Mắn Lần Sau
 3. Giải đặc biệt:
-   - 1 Tô Phở Miễn Phí 50K: chu kỳ 1 ưu tiên lượt 95; từ chu kỳ 2 trở đi ưu tiên lượt 310.
-   - Ăn miễn phí 2 tô phở / 1 tuần: chu kỳ 1 ưu tiên lượt 150; từ chu kỳ 2 trở đi ưu tiên lượt 600.
+   - 1 Tô Phở Miễn Phí 50K: ưu tiên lượt 310.
+   - Ăn miễn phí 2 tô phở / 1 tuần: ưu tiên lượt 600.
 4. Không cho cùng một khách nhận cả hai giải đặc biệt.
-   - Nếu khách tại đúng mốc ưu tiên không đủ điều kiện vì đã từng nhận giải đặc biệt còn lại, hệ thống chuyển giải sang lượt thường gần nhất trước đó của khách đủ điều kiện để vẫn giữ đủ 1 giải đặc biệt trong chu kỳ.
-   - Chu kỳ 1 dùng mốc 95 (50K) và 150 (2 tô); từ chu kỳ 2 trở đi dùng mốc 310 (50K) và 600 (2 tô).
+   - Nếu vị trí đặc biệt gặp khách không đủ điều kiện, hệ thống chuyển giải sang lượt gần nhất đủ điều kiện.
+   - Với vị trí 600, hệ thống đổi (swap) giải với lượt thường gần nhất trước đó của khách đủ điều kiện để giữ đúng số lượng giải và không cho một khách nhận cả hai giải đặc biệt.
 5. Mỗi khách tối đa 3 lượt/ngày; lượt 2 và 3 cần mã mở khóa của quán.
 6. Mã QR phần thưởng dùng để kiểm tra/đổi quà tại quán.
 7. Admin dùng mật khẩu hash + salt trong D1; không phụ thuộc Cloudflare ADMIN_PASSWORD.
@@ -32,7 +32,7 @@ PHÂN BỔ GIẢI NHỎ TRÊN CHU KỲ 600
 - 1 Ly Trà Gừng Mát Lạnh: 25 vị trí mục tiêu trải đều trong chu kỳ.
 - Hệ thống không còn bốc ngẫu nhiên thuần túy theo quota còn lại, nên giải nhỏ không bị dồn vào đầu chu kỳ.
 - Nếu một mốc mục tiêu bị giải đặc biệt chiếm, giải nhỏ bị trễ sẽ được trao ở mốc phù hợp tiếp theo; quota cuối chu kỳ vẫn được giữ.
-- Chu kỳ 1: giải 50K ưu tiên lượt 95, giải 2 tô ưu tiên lượt 150 để tạo hiệu ứng thưởng sớm. Từ chu kỳ 2 trở đi: giải 50K ưu tiên lượt 310, giải 2 tô ưu tiên lượt 600.
+- Giải 50K vẫn ưu tiên từ lượt 310 theo luật hiện tại; giải 2 tô vẫn ưu tiên lượt 600.
 
 
 
