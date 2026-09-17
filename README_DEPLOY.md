@@ -1,37 +1,41 @@
-# PHỞ NHÀ ANNA – Lucky Wheel V14 FIXED FINAL
+# PHỞ NHÀ ANNA – Lucky Wheel V9 FINAL
 
-## Mục tiêu bản V14
-- Sửa lỗi JavaScript trong Admin làm toàn bộ handler không chạy, khiến bấm ĐĂNG NHẬP không có thông báo.
-- F5 Admin: giữ phiên bằng HttpOnly cookie + server session + local/session storage fallback.
-- Lỗi mạng/API của Admin phải hiện thông báo thay vì im lặng.
-- Giữ mở thêm lượt bằng SĐT, không cộng trùng trong ngày.
-- Kiểm tra & đổi quà nằm ngay dưới mục Mở thêm lượt.
-- Camera QR mở trong modal, không chèn camera cố định vào trang.
-- Xóa 1 khách dùng hộp thoại PHỞ NHÀ ANNA.
-- Xóa toàn bộ: cảnh báo -> xác nhận cuối -> bắt buộc nhập chính xác `XOA TAT CA`.
-- Trang khách: sửa hiển thị trạng thái khi đã dùng hết lượt miễn phí nhưng chưa được mở khóa; nút quay bị khóa đúng lúc và hộp nhiệm vụ vẫn hiện.
-- Trang khách báo lỗi kết nối rõ ràng hơn.
+## Bản này đã rà soát các lỗi anh báo
 
-## Kiểm tra đã chạy
+- Admin dùng **HttpOnly cookie** làm phiên đăng nhập chính.
+- Khi F5, `admin.html` gọi `/api/admin/session` để xác thực lại phiên từ server.
+- Có fallback bằng token trong localStorage/sessionStorage để tương thích với phiên cũ.
+- Có `/api/admin/logout` để xóa cookie phiên.
+- API có `Cache-Control: no-store` để tránh giữ dữ liệu API cũ.
+- `index.html` và `admin.html` được gửi với `Cache-Control: no-store` để hạn chế trình duyệt giữ giao diện cũ sau deploy.
+- Mở thêm lượt chỉ cần **1 số điện thoại**. Hệ thống cộng đúng số **lượt làm nhiệm vụ** đang cấu hình và không cộng trùng trong cùng ngày.
+- Bảng `customer_unlocks` và `unlock_tokens` được tạo tự động nếu D1 chưa có; không xóa dữ liệu cũ.
+- Cấu hình ngày: Tổng lượt/ngày, lượt miễn phí/ngày, lượt làm nhiệm vụ và nội dung nhiệm vụ.
+- Cấu hình ngày được áp dụng cho cả trang khách và API giới hạn lượt.
+- Trạng thái chu kỳ giữ kiểu hiển thị chữ đơn giản, dễ nhìn trên điện thoại.
+- Cấu hình chu kỳ và số lượng từng giải vẫn giữ nguyên.
+
+## Kiểm tra trước khi đóng gói
+
 - `node --check src/worker.js`: PASS
-- Inline JS `public/admin.html`: PASS
-- Inline JS `public/index.html`: PASS
-- HTML ID references: không có ID JavaScript nào thiếu trong HTML
-- ZIP integrity: PASS
+- JavaScript trong `public/admin.html`: PASS
+- `unzip -t`: PASS
+- Kiểm tra không còn giao diện Admin cũ dạng chọn "Lượt quay thứ 2/3": PASS
+- Kiểm tra không còn luật cũ "tối đa 3 lượt/ngày": PASS
+- Kiểm tra Admin có đúng 1 ô SĐT mở thêm lượt: PASS
 
 ## Deploy
-Deploy toàn bộ thư mục lên đúng Worker hiện tại của PHỞ NHÀ ANNA, giữ nguyên D1 database binding.
-Không DROP/TRUNCATE/xóa D1 trong quá trình deploy.
 
-## Sau deploy – test bắt buộc
-1. Mở `/admin.html`.
-2. Nhập mật khẩu và bấm ĐĂNG NHẬP. Nếu sai phải hiện thông báo.
-3. F5 3 lần: vẫn ở Admin nếu session hợp lệ.
-4. Mở thêm lượt cho SĐT đã đăng ký.
-5. Trang khách của đúng SĐT: trạng thái lượt cập nhật tối đa vài giây.
-6. Sau khi dùng lượt miễn phí, ô nhiệm vụ phải còn hiện nếu chưa mở khóa; nút quay không được cho quay.
-7. Bấm mở khóa Admin: khách nhận thêm lượt mà không cần F5.
-8. Quét QR đổi quà: camera phải mở trong hộp thoại nổi; đóng được bằng nút ĐÓNG CAMERA.
-9. Xóa một khách: dùng hộp thoại riêng của PHỞ NHÀ ANNA.
-10. Xóa tất cả: chỉ xóa khi nhập đúng `XOA TAT CA`.
-11. Đổi mật khẩu: đổi xong F5 vẫn đăng nhập bằng phiên mới.
+Deploy toàn bộ thư mục này lên **Worker hiện tại** của PHỞ NHÀ ANNA.
+
+Không xóa D1. Không chạy lệnh xóa dữ liệu.
+
+Sau deploy, test theo thứ tự:
+
+1. Mở `/admin.html`, đăng nhập.
+2. F5 trang Admin: phải vẫn ở trang quản lý và tải được trạng thái.
+3. Nhập SĐT khách đã đăng ký → **MỞ KHÓA THÊM LƯỢT**.
+4. Mở trang khách → đăng ký SĐT → kiểm tra số lượt.
+5. Đổi cấu hình lượt/ngày trên Admin → trang khách phải nhận cấu hình mới.
+
+Nếu trình duyệt đang giữ bản HTML cũ, đóng tab Admin rồi mở lại URL `/admin.html`; bản V9 đã gửi header no-store cho trang Admin/khách.
