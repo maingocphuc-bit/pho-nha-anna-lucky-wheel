@@ -105,6 +105,13 @@ function specialExpires(prizeIndex, date) {
 // Mỗi loại có các "mốc mục tiêu" cách nhau gần đều; khi một mốc bị chiếm bởi
 // giải đặc biệt, giải nhỏ sẽ được trao ở mốc kế tiếp còn phù hợp. Vì vậy giải
 // không còn bị bốc ngẫu nhiên dồn vào những lượt đầu chu kỳ.
+function specialTargetPosition(specialIndex, cycleNo) {
+  // Chu kỳ 1 dùng mốc sớm để tạo hiệu ứng khởi động chương trình.
+  // Từ chu kỳ 2 trở đi quay về mốc chuẩn.
+  if (Number(cycleNo) === 1) return specialIndex === 1 ? 95 : 150;
+  return specialIndex === 1 ? 310 : 600;
+}
+
 function regularTargetPositions(prizeIndex) {
   const quota = Number(REGULAR_QUOTAS[prizeIndex] || 0);
   if (!quota) return [];
@@ -220,26 +227,34 @@ async function api(req, env, url) {
     const special1Awarded = cycleRows.some(r => Number(r.prize_index)===1);
     const special0Awarded = cycleRows.some(r => Number(r.prize_index)===0);
 
+    const target50 = specialTargetPosition(1, cycleNo);
+    const target2 = specialTargetPosition(0, cycleNo);
     let i;
-    // Vị trí 600 phải ưu tiên giải 2 tô phở trước mọi giải đặc biệt còn thiếu.
-    // Vị trí 310 trở đi mới dùng cho giải 50K nếu giải này chưa được trao.
-    if (cyclePosition === 600 && !special0Awarded && await eligibleFor(0)) {
+
+    // Giải 50K: ưu tiên đúng mốc mục tiêu; nếu khách ở mốc đó không đủ điều kiện
+    // thì giữ giải cho lượt đủ điều kiện kế tiếp.
+    // Riêng nếu đã đi qua mốc mà giải vẫn chưa trao, trao ngay ở khách đủ điều kiện đầu tiên.
+    if (!special1Awarded && cyclePosition >= target50 && await eligibleFor(1) && cyclePosition < target2) {
+      i = 1;
+    // Giải 2 tô: ưu tiên đúng mốc mục tiêu (150 ở chu kỳ 1, 600 từ chu kỳ 2).
+    } else if (!special0Awarded && cyclePosition >= target2 && await eligibleFor(0)) {
       i = 0;
-    } else if (!special1Awarded && cyclePosition >= 310 && await eligibleFor(1)) {
+    } else if (!special1Awarded && cyclePosition >= target50 && await eligibleFor(1)) {
       i = 1;
     } else {
       i = chooseRegular(counts, cyclePosition);
     }
 
-    // Nếu vị trí 600 gặp khách đã có giải đặc biệt còn lại, tìm lượt thường
-    // gần nhất trước đó của một khách chưa có giải đặc biệt 50K và đổi giải.
-    if (cyclePosition === 600 && !special0Awarded && !await eligibleFor(0)) {
+    // Nếu tới đúng mốc giải 2 tô nhưng khách không đủ điều kiện, chuyển giải
+    // sang lượt thường gần nhất trước đó của khách đủ điều kiện. Nếu không có,
+    // giải sẽ chờ và trao ở lượt đủ điều kiện kế tiếp.
+    if (cyclePosition === target2 && !special0Awarded && !await eligibleFor(0)) {
       const prior = await env.DB.prepare(`
         SELECT p.id,p.prize_index,p.customer_id,p.reward_code,p.created_at
         FROM plays p
         WHERE p.cycle600_no=? AND p.cycle600_position<? AND p.prize_index IN (2,3,4,5)
           AND p.redeemed=0 AND COALESCE(p.redemption_count,0)=0
-          AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=1)
+          AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index IN (0,1))
         ORDER BY p.cycle600_position DESC LIMIT 1
       `).bind(cycleNo,cyclePosition).first();
       if (prior) {
@@ -249,7 +264,7 @@ async function api(req, env, url) {
           .bind(PRIZES[0].name,specialExpiry,prior.id).run();
         i=displacedIndex;
       } else {
-        i=5;
+        i=chooseRegular(counts, cyclePosition);
       }
     }
 
