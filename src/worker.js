@@ -59,6 +59,91 @@ async function hashPassword(password, saltHex) {
   // D1-only admin: salted SHA-256, lightweight enough for Cloudflare Workers.
   return await sha256(saltHex + ':' + String(password));
 }
+async function safeSchemaRun(env, sql, attempts = 4) {
+  let last = null;
+  for (let i = 0; i < attempts; i++) {
+    try { return await env.DB.prepare(sql).run(); }
+    catch (e) {
+      last = e;
+      const msg = String(e?.message || e || '').toLowerCase();
+      // Two Admin/API requests can perform the first-time D1 migration at the
+      // same moment. Treat duplicate-column/already-exists as success and retry
+      // transient D1 locking errors instead of turning the API into HTTP 500.
+      if (msg.includes('duplicate column') || msg.includes('already exists')) return null;
+      if (msg.includes('locked') || msg.includes('busy') || msg.includes('conflict')) {
+        await new Promise(r => setTimeout(r, 40 * (i + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw last;
+}
+
+async function ensureCoreSchema(env) {
+  // The original project creates customers/plays in the existing D1 database.
+  // This self-healing layer also supports a fresh/partially migrated D1 and,
+  // crucially, makes first-run schema repair safe when several Admin requests
+  // load in parallel after login/F5.
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS plays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    play_date TEXT NOT NULL,
+    prize_index INTEGER NOT NULL,
+    prize_name TEXT NOT NULL,
+    reward_code TEXT NOT NULL UNIQUE,
+    redeemed INTEGER NOT NULL DEFAULT 0,
+    redeemed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT,
+    redemption_count INTEGER NOT NULL DEFAULT 0,
+    cycle600_no INTEGER NOT NULL DEFAULT 1,
+    cycle600_position INTEGER,
+    cycle_no INTEGER,
+    cycle_position INTEGER
+  )`).run();
+
+  const cInfo = await env.DB.prepare('PRAGMA table_info(customers)').all();
+  const cCols = new Set((cInfo.results || []).map(x => String(x.name)));
+  const cAdds = [
+    ['name', 'ALTER TABLE customers ADD COLUMN name TEXT'],
+    ['phone', 'ALTER TABLE customers ADD COLUMN phone TEXT'],
+    ['created_at', "ALTER TABLE customers ADD COLUMN created_at TEXT"],
+    ['updated_at', "ALTER TABLE customers ADD COLUMN updated_at TEXT"]
+  ];
+  for (const [name, sql] of cAdds) if (!cCols.has(name)) await safeSchemaRun(env, sql);
+
+  const pInfo = await env.DB.prepare('PRAGMA table_info(plays)').all();
+  const pCols = new Set((pInfo.results || []).map(x => String(x.name)));
+  const pAdds = [
+    ['customer_id', 'ALTER TABLE plays ADD COLUMN customer_id INTEGER'],
+    ['play_date', 'ALTER TABLE plays ADD COLUMN play_date TEXT'],
+    ['prize_index', 'ALTER TABLE plays ADD COLUMN prize_index INTEGER'],
+    ['prize_name', 'ALTER TABLE plays ADD COLUMN prize_name TEXT'],
+    ['reward_code', 'ALTER TABLE plays ADD COLUMN reward_code TEXT'],
+    ['redeemed', 'ALTER TABLE plays ADD COLUMN redeemed INTEGER NOT NULL DEFAULT 0'],
+    ['redeemed_at', 'ALTER TABLE plays ADD COLUMN redeemed_at TEXT'],
+    ['created_at', "ALTER TABLE plays ADD COLUMN created_at TEXT"],
+    ['expires_at', 'ALTER TABLE plays ADD COLUMN expires_at TEXT'],
+    ['redemption_count', 'ALTER TABLE plays ADD COLUMN redemption_count INTEGER NOT NULL DEFAULT 0'],
+    ['cycle600_no', 'ALTER TABLE plays ADD COLUMN cycle600_no INTEGER NOT NULL DEFAULT 1'],
+    ['cycle600_position', 'ALTER TABLE plays ADD COLUMN cycle600_position INTEGER'],
+    ['cycle_no', 'ALTER TABLE plays ADD COLUMN cycle_no INTEGER'],
+    ['cycle_position', 'ALTER TABLE plays ADD COLUMN cycle_position INTEGER']
+  ];
+  for (const [name, sql] of pAdds) if (!pCols.has(name)) await safeSchemaRun(env, sql);
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_customer_date ON plays(customer_id,play_date)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_cycle ON plays(cycle600_no,cycle600_position)').run();
+}
+
 async function ensureAdminSchema(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_credentials (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -75,7 +160,7 @@ async function ensureAdminSchema(env) {
     ['token_hash','ALTER TABLE admin_credentials ADD COLUMN token_hash TEXT'],
     ['updated_at',"ALTER TABLE admin_credentials ADD COLUMN updated_at TEXT"]
   ];
-  for(const [name,sql] of adds) if(!cols.has(name)) await env.DB.prepare(sql).run();
+  for(const [name,sql] of adds) if(!cols.has(name)) await safeSchemaRun(env,sql);
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     token_hash TEXT NOT NULL UNIQUE,
@@ -140,14 +225,7 @@ async function adminOk(req, env) {
   return (legacyCookie && legacyCookie===account.token_hash) || (legacyHeader && legacyHeader===account.token_hash);
 }
 async function ensurePlayColumns(env) {
-  const info = await env.DB.prepare('PRAGMA table_info(plays)').all();
-  const cols = new Set((info.results || []).map(x => String(x.name)));
-  const adds = [];
-  if (!cols.has('redemption_count')) adds.push("ALTER TABLE plays ADD COLUMN redemption_count INTEGER NOT NULL DEFAULT 0");
-  if (!cols.has('expires_at')) adds.push("ALTER TABLE plays ADD COLUMN expires_at TEXT");
-  if (!cols.has('cycle600_no')) adds.push("ALTER TABLE plays ADD COLUMN cycle600_no INTEGER NOT NULL DEFAULT 1");
-  if (!cols.has('cycle600_position')) adds.push("ALTER TABLE plays ADD COLUMN cycle600_position INTEGER");
-  for (const sql of adds) await env.DB.prepare(sql).run();
+  await ensureCoreSchema(env);
 }
 
 async function ensureDailyConfig(env) {
@@ -198,7 +276,7 @@ async function ensureCycleConfig(env) {
     ['pending_quota_prize3', 'ALTER TABLE cycle_config ADD COLUMN pending_quota_prize3 INTEGER'],
     ['pending_quota_prize4', 'ALTER TABLE cycle_config ADD COLUMN pending_quota_prize4 INTEGER']
   ];
-  for (const [name,sql] of adds) if (!cols.has(name)) await env.DB.prepare(sql).run();
+  for (const [name,sql] of adds) if (!cols.has(name)) await safeSchemaRun(env,sql);
   await env.DB.prepare(`INSERT OR IGNORE INTO cycle_config(
     id,cycle_size,pending_cycle_size,quota_prize0,quota_prize1,quota_prize2,quota_prize3,quota_prize4,
     pending_quota_prize0,pending_quota_prize1,pending_quota_prize2,pending_quota_prize3,pending_quota_prize4
@@ -365,7 +443,7 @@ async function ensureUnlockTables(env) {
     ['created_at','ALTER TABLE unlock_tokens ADD COLUMN created_at TEXT'],
     ['used_at','ALTER TABLE unlock_tokens ADD COLUMN used_at TEXT']
   ];
-  for(const [name,sql] of adds2) if(!cols2.has(name)) await env.DB.prepare(sql).run();
+  for(const [name,sql] of adds2) if(!cols2.has(name)) await safeSchemaRun(env,sql);
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customer_unlocks_lookup ON customer_unlocks(customer_id, unlock_date)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_unlock_tokens_token ON unlock_tokens(token)').run();
 }
@@ -481,6 +559,10 @@ async function specialHistory(env, customerId) {
 
 async function api(req, env, url) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+
+  // Ensure the two business tables exist before any endpoint touches them.
+  // This is idempotent and safe under concurrent Admin page loading.
+  await ensureCoreSchema(env);
 
   if (url.pathname === '/api/daily-config' && req.method === 'GET') {
     const dc=await getDailyConfig(env);
