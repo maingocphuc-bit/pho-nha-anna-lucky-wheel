@@ -221,32 +221,25 @@ async function api(req, env, url) {
     const special0Awarded = cycleRows.some(r => Number(r.prize_index)===0);
 
     let i;
-    // CHU KỲ 1: đưa 2 giải phở đặc biệt đến sớm để tạo hiệu ứng
-    // khách nhận thưởng và giới thiệu thêm khách. Các chu kỳ sau trở lại
-    // mốc bình thường: 50K từ lượt 310 và 2 tô tại lượt 600.
-    const special50Target = cycleNo === 1 ? 95 : 310;
-    const special2BowlTarget = cycleNo === 1 ? 150 : 600;
-
-    // Ưu tiên tuyệt đối mốc đặc biệt của chu kỳ hiện tại nếu khách đủ điều kiện.
-    if (cyclePosition === special2BowlTarget && !special0Awarded && await eligibleFor(0)) {
+    // Vị trí 600 phải ưu tiên giải 2 tô phở trước mọi giải đặc biệt còn thiếu.
+    // Vị trí 310 trở đi mới dùng cho giải 50K nếu giải này chưa được trao.
+    if (cyclePosition === 600 && !special0Awarded && await eligibleFor(0)) {
       i = 0;
-    } else if (!special1Awarded && cyclePosition >= special50Target && await eligibleFor(1)) {
+    } else if (!special1Awarded && cyclePosition >= 310 && await eligibleFor(1)) {
       i = 1;
     } else {
       i = chooseRegular(counts, cyclePosition);
     }
 
-    // Nếu đúng mốc giải đặc biệt nhưng khách không đủ điều kiện vì đã từng
-    // nhận giải đặc biệt còn lại, chuyển giải sang lượt thường gần nhất trước đó
-    // của một khách đủ điều kiện. Như vậy quota giải đặc biệt vẫn được bảo toàn.
-    if (cyclePosition === special2BowlTarget && !special0Awarded && !await eligibleFor(0)) {
+    // Nếu vị trí 600 gặp khách đã có giải đặc biệt còn lại, tìm lượt thường
+    // gần nhất trước đó của một khách chưa có giải đặc biệt 50K và đổi giải.
+    if (cyclePosition === 600 && !special0Awarded && !await eligibleFor(0)) {
       const prior = await env.DB.prepare(`
         SELECT p.id,p.prize_index,p.customer_id,p.reward_code,p.created_at
         FROM plays p
         WHERE p.cycle600_no=? AND p.cycle600_position<? AND p.prize_index IN (2,3,4,5)
           AND p.redeemed=0 AND COALESCE(p.redemption_count,0)=0
           AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=1)
-          AND NOT EXISTS (SELECT 1 FROM plays h2 WHERE h2.customer_id=p.customer_id AND h2.prize_index=0)
         ORDER BY p.cycle600_position DESC LIMIT 1
       `).bind(cycleNo,cyclePosition).first();
       if (prior) {
@@ -257,27 +250,6 @@ async function api(req, env, url) {
         i=displacedIndex;
       } else {
         i=5;
-      }
-    }
-
-    // Nếu đúng mốc 50K nhưng khách không đủ điều kiện (đã có giải 2 tô),
-    // tìm một lượt thường gần nhất trước đó của khách đủ điều kiện để chuyển giải.
-    if (cyclePosition === special50Target && !special1Awarded && !await eligibleFor(1)) {
-      const prior = await env.DB.prepare(`
-        SELECT p.id,p.prize_index,p.customer_id
-        FROM plays p
-        WHERE p.cycle600_no=? AND p.cycle600_position<? AND p.prize_index IN (2,3,4,5)
-          AND p.redeemed=0 AND COALESCE(p.redemption_count,0)=0
-          AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=0)
-          AND NOT EXISTS (SELECT 1 FROM plays h2 WHERE h2.customer_id=p.customer_id AND h2.prize_index=1)
-        ORDER BY p.cycle600_position DESC LIMIT 1
-      `).bind(cycleNo,cyclePosition).first();
-      if (prior) {
-        const displacedIndex=Number(prior.prize_index);
-        const specialExpiry=specialExpires(1,d);
-        await env.DB.prepare('UPDATE plays SET prize_index=1,prize_name=?,expires_at=?,redeemed=0,redemption_count=0,redeemed_at=NULL WHERE id=?')
-          .bind(PRIZES[1].name,specialExpiry,prior.id).run();
-        i=displacedIndex;
       }
     }
 
