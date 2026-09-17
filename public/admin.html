@@ -54,6 +54,8 @@
 <script>
 const $=id=>document.getElementById(id);
 let adminToken=localStorage.getItem('annaAdminToken')||sessionStorage.getItem('annaAdminToken')||'';
+function persistAdminToken(token){adminToken=String(token||'');if(adminToken){localStorage.setItem('annaAdminToken',adminToken);sessionStorage.setItem('annaAdminToken',adminToken);}}
+function clearAdminToken(){adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');}
 function show(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}
 function hide(id){$(id).classList.add('hidden')}
 function setApp(on){$('app').classList.toggle('hidden',!on);$('loginCard').classList.toggle('hidden',on)}
@@ -88,9 +90,9 @@ async function bootAdmin(){
       if(r._status!==401){setApp(true);booting=false;return;}
     }catch(e){setApp(true);booting=false;return;}
   }
-  adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false);booting=false;
+  clearAdminToken();setApp(false);booting=false;
 }
-$('loginBtn').onclick=async()=>{hide('loginMsg');try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('password').value})});if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');adminToken=r.token||'';localStorage.setItem('annaAdminToken',adminToken);sessionStorage.setItem('annaAdminToken',adminToken);setApp(true);$('password').value='';loadPlays();loadCycleConfig();loadDailyConfig();loadStatus()}catch(e){show('loginMsg',e.message)}};
+$('loginBtn').onclick=async()=>{hide('loginMsg');try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('password').value})});if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');persistAdminToken(r.token||'');setApp(true);$('password').value='';loadPlays();loadCycleConfig();loadDailyConfig();loadStatus()}catch(e){show('loginMsg',e.message)}};
 $('logoutBtn').onclick=async()=>{try{await api('/api/admin/logout',{method:'POST'})}catch(e){}adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false)};
 $('makeBtn').onclick=async()=>{hide('makeMsg');try{const r=await api('/api/admin/unlock',{method:'POST',body:JSON.stringify({phone:$('unlockPhone').value})});if(!r.ok)throw Error(r.error||'Không mở khóa được');show('makeMsg','✅ '+r.message+' '+r.customer.name+' ('+r.customer.phone+').');$('unlockPhone').value='';loadStatus();}catch(e){show('makeMsg',e.message)}};
 
