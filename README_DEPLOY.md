@@ -1,4 +1,4 @@
-# PHỞ NHÀ ANNA – Lucky Wheel V9 FINAL
+# PHỞ NHÀ ANNA – Lucky Wheel V11 FIXED FINAL
 
 ## Bản này đã rà soát các lỗi anh báo
 
@@ -46,3 +46,25 @@ Nếu trình duyệt đang giữ bản HTML cũ, đóng tab Admin rồi mở l�
 - **Chống bấm/quay đồng thời:** server dùng khóa D1 toàn cục cho lượt quay, tránh hai request cùng lúc làm sai bộ đếm chu kỳ hoặc vượt quy tắc liên tiếp.
 - **Admin F5:** phiên quản trị dùng HttpOnly cookie và endpoint `/api/admin/session`; trang admin giữ trạng thái khi tải lại và chỉ đăng xuất khi server xác nhận phiên đã hết hiệu lực.
 
+
+
+## V11 – sửa lỗi thực tế trên D1 cũ
+
+### A. Mở thêm lượt
+V10 vẫn ghi trực tiếp `unlock_type=4` vào bảng `customer_unlocks`. Nếu D1 đang dùng schema cũ có ràng buộc khác, thao tác có thể ném lỗi 500. V11 tách chức năng này sang bảng `admin_extra_unlocks`, tự tạo bảng và index nếu chưa có. Dữ liệu cũ không bị xóa.
+
+### B. F5 Admin
+V11 dùng `admin_sessions` với token ngẫu nhiên 32 byte, lưu hash trong D1, thời hạn 7 ngày. Cookie HttpOnly/Secure/SameSite=Lax và token localStorage/sessionStorage cùng được hỗ trợ. Token kiểu cũ vẫn được chấp nhận để không làm mất phiên của bản cũ.
+
+### C. Không thay đổi dữ liệu D1 hiện có
+Không có lệnh DROP/TRUNCATE. Các bảng mới chỉ dùng `CREATE TABLE IF NOT EXISTS`.
+
+### D. Sau khi deploy
+1. Đăng nhập `/admin.html`.
+2. F5 ngay 3 lần: trang phải giữ nguyên trạng thái quản lý.
+3. Nhập SĐT khách đã đăng ký → bấm **MỞ KHÓA THÊM LƯỢT**.
+4. Sang trang khách của đúng SĐT → số lượt phải tăng ngay trong tối đa 5 giây, không cần F5.
+5. Thử bấm mở khóa lần 2 cùng ngày → hệ thống báo đã mở, không cộng trùng.
+6. Test hai lượt quay liên tiếp có thưởng rồi lượt thứ ba: server phải trả ô 5, không phụ thuộc trình duyệt.
+
+**Không deploy đồng thời một file worker khác lên cùng Worker.**
