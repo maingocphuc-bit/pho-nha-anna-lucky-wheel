@@ -462,7 +462,7 @@ async function api(req, env, url) {
     if(!Number.isInteger(freeDaily)||freeDaily<0||freeDaily>totalDaily)return json({ok:false,error:'Số lượt miễn phí/ngày không hợp lệ.'},400);
     if(!Number.isInteger(taskDaily)||taskDaily<0||taskDaily!==totalDaily-freeDaily)return json({ok:false,error:'Số lượt làm nhiệm vụ phải bằng Tổng số lượt/ngày trừ Số lượt miễn phí/ngày.'},400);
     await ensureDailyConfig(env);
-    await env.DB.prepare('UPDATE daily_config SET total_daily=?,free_daily=?,task_daily=?,task_enabled=?,task_label=?,updated_at=datetime('now') WHERE id=1').bind(totalDaily,freeDaily,taskDaily,taskEnabled?1:0,taskLabel||'Làm nhiệm vụ để thêm lượt').run();
+    await env.DB.prepare("UPDATE daily_config SET total_daily=?,free_daily=?,task_daily=?,task_enabled=?,task_label=?,updated_at=datetime('now') WHERE id=1").bind(totalDaily,freeDaily,taskDaily,taskEnabled?1:0,taskLabel||'Làm nhiệm vụ để thêm lượt').run();
     return json({ok:true,totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:taskLabel||'Làm nhiệm vụ để thêm lượt',message:'Đã cập nhật giới hạn lượt/ngày. Trang khách hàng sẽ áp dụng cấu hình mới ngay.'});
   }
 
