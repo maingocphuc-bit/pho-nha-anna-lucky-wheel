@@ -1,41 +1,24 @@
-# PHỞ NHÀ ANNA – Lucky Wheel V9 FINAL
+# PHỞ NHÀ ANNA – Lucky Wheel V10.1 ADMIN FIX
 
-## Bản này đã rà soát các lỗi anh báo
+Bản này được sửa trực tiếp từ `PHO_NHA_ANNA_LUCKY_WHEEL_V10_FIXED_3_LOI.zip`.
 
-- Admin dùng **HttpOnly cookie** làm phiên đăng nhập chính.
-- Khi F5, `admin.html` gọi `/api/admin/session` để xác thực lại phiên từ server.
-- Có fallback bằng token trong localStorage/sessionStorage để tương thích với phiên cũ.
-- Có `/api/admin/logout` để xóa cookie phiên.
-- API có `Cache-Control: no-store` để tránh giữ dữ liệu API cũ.
-- `index.html` và `admin.html` được gửi với `Cache-Control: no-store` để hạn chế trình duyệt giữ giao diện cũ sau deploy.
-- Mở thêm lượt chỉ cần **1 số điện thoại**. Hệ thống cộng đúng số **lượt làm nhiệm vụ** đang cấu hình và không cộng trùng trong cùng ngày.
-- Bảng `customer_unlocks` và `unlock_tokens` được tạo tự động nếu D1 chưa có; không xóa dữ liệu cũ.
-- Cấu hình ngày: Tổng lượt/ngày, lượt miễn phí/ngày, lượt làm nhiệm vụ và nội dung nhiệm vụ.
-- Cấu hình ngày được áp dụng cho cả trang khách và API giới hạn lượt.
-- Trạng thái chu kỳ giữ kiểu hiển thị chữ đơn giản, dễ nhìn trên điện thoại.
-- Cấu hình chu kỳ và số lượng từng giải vẫn giữ nguyên.
-
-## Kiểm tra trước khi đóng gói
-
-- `node --check src/worker.js`: PASS
-- JavaScript trong `public/admin.html`: PASS
-- `unzip -t`: PASS
-- Kiểm tra không còn giao diện Admin cũ dạng chọn "Lượt quay thứ 2/3": PASS
-- Kiểm tra không còn luật cũ "tối đa 3 lượt/ngày": PASS
-- Kiểm tra Admin có đúng 1 ô SĐT mở thêm lượt: PASS
+## Đã sửa theo yêu cầu
+1. **Thêm khung Xóa dữ liệu**: xóa 1 khách theo SĐT hoặc xóa toàn bộ dữ liệu khách hàng/lượt quay/mã mở khóa; có xác nhận 2 bước.
+2. **Camera đổi quà**: camera nằm ngay trong khung `Kiểm tra và đổi quà`, có hộp camera riêng, nút đóng camera, hỗ trợ QR thuần `ANNA-...` hoặc URL chứa mã.
+3. **F5 Admin**: dùng HttpOnly cookie làm phiên chính + token tương thích; API/session dùng `no-store`; F5 không tự đưa ra màn hình đăng nhập chỉ vì request tạm thời lỗi.
+4. **Đổi mật khẩu Admin**: có khung ngay trên Admin; bắt buộc mật khẩu hiện tại, mật khẩu mới tối thiểu 8 ký tự và xác nhận lại.
+5. **Đưa khung Đổi quà lên trên**: đặt ngay sau `Trạng thái chu kỳ` để thao tác nhanh trên điện thoại.
+6. **Bảo vệ dữ liệu**: xóa khách cũng xóa unlock/token/spin lock/lượt quay liên quan; xóa toàn bộ đưa bộ đếm chu kỳ về 0 nhưng không xóa cấu hình giải.
+7. **Bootstrap tài khoản Admin**: tự tạo bảng `admin_credentials` nếu D1 cũ chưa có bảng, tránh lỗi server khi kiểm tra phiên.
 
 ## Deploy
+Deploy toàn bộ thư mục trong ZIP lên Worker hiện tại của PHỞ NHÀ ANNA. Không xóa D1.
 
-Deploy toàn bộ thư mục này lên **Worker hiện tại** của PHỞ NHÀ ANNA.
+Sau deploy test:
+- đăng nhập Admin;
+- F5 3 lần liên tiếp;
+- mở khung Đổi quà -> Quét QR -> cấp quyền camera -> đóng camera;
+- đổi mật khẩu;
+- xóa 1 khách test;
+- xóa toàn bộ dữ liệu test nếu cần.
 
-Không xóa D1. Không chạy lệnh xóa dữ liệu.
-
-Sau deploy, test theo thứ tự:
-
-1. Mở `/admin.html`, đăng nhập.
-2. F5 trang Admin: phải vẫn ở trang quản lý và tải được trạng thái.
-3. Nhập SĐT khách đã đăng ký → **MỞ KHÓA THÊM LƯỢT**.
-4. Mở trang khách → đăng ký SĐT → kiểm tra số lượt.
-5. Đổi cấu hình lượt/ngày trên Admin → trang khách phải nhận cấu hình mới.
-
-Nếu trình duyệt đang giữ bản HTML cũ, đóng tab Admin rồi mở lại URL `/admin.html`; bản V9 đã gửi header no-store cho trang Admin/khách.
