@@ -20,7 +20,10 @@ const CORS = {
 };
 
 function json(data, status = 200, extraHeaders = {}) {
-  return new Response(JSON.stringify(data), { status, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', ...extraHeaders } });
+  return new Response(JSON.stringify(data), { status, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store, no-cache, must-revalidate', 'Pragma': 'no-cache', ...extraHeaders } });
+}
+function clearAdminCookie() {
+  return 'anna_admin=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0';
 }
 function adminCookie(token, maxAge = 604800) {
   return `anna_admin=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
@@ -478,6 +481,17 @@ async function api(req, env, url) {
     return json({ok:true,token:account.token_hash},200,{'Set-Cookie':adminCookie(account.token_hash)});
   }
 
+  // Lightweight session check used by admin.html on every page load/F5.
+  // It authenticates from the HttpOnly cookie first, so a refresh never depends on page state.
+  if (url.pathname === '/api/admin/session' && req.method === 'GET') {
+    const ok=await adminOk(req,env);
+    return json({ok},ok?200:401);
+  }
+
+  if (url.pathname === '/api/admin/logout' && req.method === 'POST') {
+    return json({ok:true},200,{'Set-Cookie':clearAdminCookie()});
+  }
+
   if (url.pathname === '/api/admin/status' && req.method === 'GET') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
     await ensurePlayColumns(env);
@@ -574,7 +588,7 @@ async function api(req, env, url) {
     if(existing)return json({ok:true,already:true,unlockType:4,message:`Khách này đã được mở thêm ${taskDaily} lượt hôm nay. Không cộng trùng.`,customer:{name:c.name,phone:c.phone},taskDaily,totalDaily:Number(dc?.total_daily||4),freeDaily:Number(dc?.free_daily||2)});
     const token = tokenCode('TASK');
     try {
-      await env.DB.prepare("INSERT INTO customer_unlocks(customer_id,unlock_type,unlock_date,token,created_at) VALUES(?,?,?,?,datetime('now'))").bind(c.id,4,d,token).run();
+      await env.DB.prepare("INSERT INTO customer_unlocks(customer_id,unlock_type,unlock_date,token) VALUES(?,?,?,?)").bind(c.id,4,d,token).run();
     } catch (e) {
       console.error('admin unlock failed', e);
       // If another request created the unlock concurrently, treat it as success/idempotent.
@@ -645,6 +659,17 @@ async function api(req, env, url) {
 
 export default { async fetch(req,env) {
   const url=new URL(req.url);
-  try { const result=await api(req,env,url); if(result)return result; return env.ASSETS.fetch(req); }
+  try {
+    const result=await api(req,env,url);
+    if(result)return result;
+    const asset=await env.ASSETS.fetch(req);
+    // Prevent browser from keeping an old admin/customer HTML shell after a new deployment.
+    const headers=new Headers(asset.headers);
+    if(url.pathname==='/' || url.pathname==='/index.html' || url.pathname==='/admin.html'){
+      headers.set('Cache-Control','no-store, no-cache, must-revalidate');
+      headers.set('Pragma','no-cache');
+    }
+    return new Response(asset.body,{status:asset.status,statusText:asset.statusText,headers});
+  }
   catch(e){ console.error('Unhandled worker error:',e); return json({ok:false,error:'Lỗi máy chủ. Vui lòng thử lại.'},500); }
 } };
