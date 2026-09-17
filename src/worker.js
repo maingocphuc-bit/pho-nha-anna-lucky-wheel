@@ -273,6 +273,34 @@ async function ensureCycleState(env) {
 }
 
 
+async function ensureSpinLocks(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS spin_locks (
+    customer_id INTEGER NOT NULL,
+    play_date TEXT NOT NULL,
+    locked_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY(customer_id, play_date)
+  )`).run();
+}
+
+async function acquireSpinLock(env, customerId, date) {
+  await ensureSpinLocks(env);
+  // A stale lock can only survive a crashed request; allow recovery after 30s.
+  await env.DB.prepare("DELETE FROM spin_locks WHERE customer_id=? AND play_date=? AND datetime(locked_at) < datetime('now','-30 seconds')")
+    .bind(customerId, date).run();
+  try {
+    const r = await env.DB.prepare("INSERT INTO spin_locks(customer_id,play_date,locked_at) VALUES(?,?,datetime('now'))")
+      .bind(customerId, date).run();
+    return r.meta.changes === 1;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function releaseSpinLock(env, customerId, date) {
+  try { await env.DB.prepare('DELETE FROM spin_locks WHERE customer_id=? AND play_date=?').bind(customerId,date).run(); } catch(e) {}
+}
+
+
 async function ensureUnlockTables(env) {
   // Repair/extend old D1 schemas as well as creating new tables. Existing rows
   // are preserved. Older versions did not always have token/created_at fields.
@@ -404,6 +432,24 @@ async function api(req, env, url) {
     return json({ok:true,totalDaily:Number(dc?.total_daily||4),freeDaily:Number(dc?.free_daily||2),taskDaily:Number(dc?.task_daily||2),taskEnabled:Number(dc?.task_enabled||0)===1,taskLabel:String(dc?.task_label||'')});
   }
 
+  if (url.pathname === '/api/player-state' && req.method === 'GET') {
+    const phone = normPhone(url.searchParams.get('phone'));
+    if (phone.length < 9 || phone.length > 12) return json({ok:false,error:'Số điện thoại không hợp lệ.'},400);
+    const c = await env.DB.prepare('SELECT id,name,phone FROM customers WHERE phone=?').bind(phone).first();
+    if (!c) return json({ok:false,error:'Khách chưa đăng ký.'},404);
+    const d = today();
+    const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE customer_id=? AND play_date=?').bind(c.id,d).first();
+    await ensureUnlockTables(env);
+    const unlocks = await customerUnlocks(env,c.id,d);
+    const dc = await getDailyConfig(env);
+    const totalDaily = Math.max(1, Number(dc?.total_daily ?? 4));
+    const freeDaily = Math.min(totalDaily, Math.max(0, Number(dc?.free_daily ?? 2)));
+    const taskDaily = Math.min(Math.max(0,totalDaily-freeDaily), Math.max(0,Number(dc?.task_daily ?? 2)));
+    const taskEnabled = Number(dc?.task_enabled ?? 1) === 1;
+    const used = Number(row?.n || 0);
+    return json({ok:true,customer:{id:c.id,name:c.name},used,remaining:Math.max(0,totalDaily-used),totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),unlockedExtra:unlocks.inviteUnlock?taskDaily:0,...unlocks});
+  }
+
   if (url.pathname === '/api/register' && req.method === 'POST') {
     const b = await req.json(); const name = String(b.name || '').trim(); const phone = normPhone(b.phone);
     if (name.length < 2 || phone.length < 9 || phone.length > 12) return json({ ok:false, error:'Tên hoặc số điện thoại không hợp lệ.' },400);
@@ -435,6 +481,17 @@ async function api(req, env, url) {
     const taskEnabled = Number(dc?.task_enabled ?? 1) === 1;
     if (used >= totalDaily) return json({ok:false,error:`Hôm nay khách đã hết ${totalDaily} lượt quay.`},429);
     if (taskEnabled && used >= freeDaily && taskDaily > 0 && !unlocks.inviteUnlock) return json({ok:false,code:'INVITE_UNLOCK',error:`Khách cần hoàn thành nhiệm vụ để mở thêm ${taskDaily} lượt.`,totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),...unlocks},403);
+
+    // Prevent double-clicks, multiple tabs, and near-simultaneous requests from
+    // consuming more than one daily turn for the same customer.
+    const lockAcquired = await acquireSpinLock(env,c.id,d);
+    if (!lockAcquired) return json({ok:false,code:'SPIN_IN_PROGRESS',error:'Lượt quay trước đang được xử lý. Vui lòng chờ vài giây.'},409);
+    let spinLockHeld = true;
+    try {
+      const verify = await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE customer_id=? AND play_date=?').bind(c.id,d).first();
+      const usedNow = Number(verify?.n || 0);
+      if (usedNow >= totalDaily) return json({ok:false,error:`Hôm nay khách đã hết ${totalDaily} lượt quay.`},429);
+      if (taskEnabled && usedNow >= freeDaily && taskDaily > 0 && !unlocks.inviteUnlock) return json({ok:false,code:'INVITE_UNLOCK',error:`Khách cần hoàn thành nhiệm vụ để mở thêm ${taskDaily} lượt.`,totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),...unlocks},403);
 
     const history = await specialHistory(env,c.id);
     await ensureCycleState(env);
@@ -494,15 +551,26 @@ async function api(req, env, url) {
     // Không cho một khách sở hữu cả hai giải đặc biệt.
     if ((i===0 && history.has1) || (i===1 && history.has0)) i = 5;
 
+    // Safety rule: never allow three winning spins in a row globally.
+    // Prize indexes 0..4 are wins; index 5 is the consolation result.
+    const recent = await env.DB.prepare('SELECT prize_index FROM plays ORDER BY id DESC LIMIT 2').all();
+    const recentWins = (recent.results||[]).length === 2 && (recent.results||[]).every(x => Number(x.prize_index) >= 0 && Number(x.prize_index) <= 4);
+    if (recentWins) i = 5;
+
     const rewardCode = tokenCode('ANNA'); const p = PRIZES[i]; const expiresAt = specialExpires(i,d);
     await env.DB.prepare(`INSERT INTO plays
       (customer_id,play_date,prize_index,prize_name,reward_code,expires_at,cycle_no,cycle_position,cycle600_no,cycle600_position)
       VALUES(?,?,?,?,?,?,?,?,?,?)`)
       .bind(c.id,d,i,p.name,rewardCode,expiresAt,cycleNo,cyclePosition,cycleNo,cyclePosition).run();
     let qr; try { qr=makeQrDataUrl(rewardCode); } catch(e) { console.error(e); return json({ok:false,error:'Tạo mã QR thất bại.'},500); }
-    return json({ok:true,prizeIndex:i,prize:p.name,special:p.special,rewardCode,qr,
+    const response = json({ok:true,prizeIndex:i,prize:p.name,special:p.special,rewardCode,qr,
       specialTerms:i===0?'Có hiệu lực 7 ngày; tối đa 1 tô/ngày; giá trị tối đa 50.000đ/tô; phần vượt quá khách tự thanh toán.':i===1?'Có hiệu lực 2 ngày; áp dụng cho 1 tô phở tối đa 50.000đ.':i===2?'Có hiệu lực 1 ngày.':i===3?'Có hiệu lực 1 ngày.':i===4?'Có hiệu lực 1 ngày.':'',
-      remaining:Math.max(0,totalDaily-(used+1)),totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),cycleNo,cyclePosition});
+      remaining:Math.max(0,totalDaily-(usedNow+1)),totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),cycleNo,cyclePosition});
+    await releaseSpinLock(env,c.id,d); spinLockHeld=false;
+    return response;
+    } finally {
+      if (spinLockHeld) await releaseSpinLock(env,c.id,d);
+    }
   }
 
   if (url.pathname === '/api/unlock/claim' && req.method === 'POST') {
