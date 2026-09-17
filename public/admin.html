@@ -187,4 +187,7 @@ $('deleteAllBtn').onclick=async()=>{
 };
 
 bootAdmin();
+// F5/page restore hardening: re-check the server session when the page becomes visible
+// again, but never erase a saved token because of a transient network/D1 failure.
+window.addEventListener('pageshow',()=>{if(!booting)bootAdmin();});
 </script></body></html>
