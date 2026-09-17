@@ -59,7 +59,17 @@ async function hashPassword(password, saltHex) {
   // D1-only admin: salted SHA-256, lightweight enough for Cloudflare Workers.
   return await sha256(saltHex + ':' + String(password));
 }
+async function ensureAdminCredentials(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_credentials (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    token_hash TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`).run();
+}
 async function getAdminAccount(env) {
+  await ensureAdminCredentials(env);
   return await env.DB.prepare('SELECT id,password_hash,salt,token_hash FROM admin_credentials WHERE id=1').first();
 }
 
@@ -611,9 +621,10 @@ async function api(req, env, url) {
   // It authenticates from the HttpOnly cookie first, so a refresh never depends on page state.
   if (url.pathname === '/api/admin/session' && req.method === 'GET') {
     const account=await getAdminAccount(env);
-    const ok=!!account && await adminOk(req,env);
+    if(!account)return json({ok:false,error:'Chưa khởi tạo tài khoản quản trị.'},503);
+    const ok=await adminOk(req,env);
     if(ok) return json({ok:true},200,{'Set-Cookie':adminCookie(account.token_hash)});
-    return json({ok:false},401,{'Set-Cookie':clearAdminCookie()});
+    return json({ok:false,error:'Phiên đăng nhập đã hết hạn.'},401,{'Set-Cookie':clearAdminCookie()});
   }
 
   if (url.pathname === '/api/admin/logout' && req.method === 'POST') {
@@ -693,9 +704,17 @@ async function api(req, env, url) {
 
   if (url.pathname === '/api/admin/change-password' && req.method === 'POST') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
-    const b=await req.json(); const p=String(b.newPassword??'').trim();
+    const b=await req.json();
+    const current=String(b.currentPassword??'').trim();
+    const p=String(b.newPassword??'').trim();
+    if(!current)return json({ok:false,error:'Vui lòng nhập mật khẩu hiện tại.'},400);
     if(p.length<8)return json({ok:false,error:'Mật khẩu mới phải có ít nhất 8 ký tự.'},400);
     if(p.length>128)return json({ok:false,error:'Mật khẩu mới quá dài.'},400);
+    const account=await getAdminAccount(env);
+    if(!account)return json({ok:false,error:'Chưa khởi tạo tài khoản quản trị.'},503);
+    const currentHash=await hashPassword(current,account.salt);
+    if(currentHash!==account.password_hash)return json({ok:false,error:'Mật khẩu hiện tại không đúng.'},401);
+    if(current===p)return json({ok:false,error:'Mật khẩu mới phải khác mật khẩu hiện tại.'},400);
     const salt=randomHex(16); const ph=await hashPassword(p,salt); const th=await sha256(p);
     const r=await env.DB.prepare("UPDATE admin_credentials SET password_hash=?,salt=?,token_hash=?,updated_at=datetime('now') WHERE id=1").bind(ph,salt,th).run();
     if(r.meta.changes!==1)return json({ok:false,error:'Không thể đổi mật khẩu quản trị.'},500);
@@ -735,13 +754,14 @@ async function api(req, env, url) {
       env.DB.prepare('DELETE FROM customer_unlocks WHERE customer_id=?').bind(c.id),
       env.DB.prepare('DELETE FROM unlock_tokens WHERE customer_id=? OR phone=?').bind(c.id,phone),
       env.DB.prepare('DELETE FROM plays WHERE customer_id=?').bind(c.id),
+      env.DB.prepare('DELETE FROM spin_locks WHERE customer_id=?').bind(c.id),
       env.DB.prepare('DELETE FROM customers WHERE id=?').bind(c.id)
     ]);
     return json({ok:true,message:`Đã xóa khách hàng ${c.name} (${c.phone}) và toàn bộ dữ liệu liên quan.`});
   }
   if (url.pathname === '/api/admin/delete-all-customers' && req.method === 'POST') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
-    await env.DB.batch([env.DB.prepare('DELETE FROM customer_unlocks'),env.DB.prepare('DELETE FROM unlock_tokens'),env.DB.prepare('DELETE FROM plays'),env.DB.prepare('DELETE FROM customers')]);
+    await env.DB.batch([env.DB.prepare('DELETE FROM customer_unlocks'),env.DB.prepare('DELETE FROM unlock_tokens'),env.DB.prepare('DELETE FROM spin_locks'),env.DB.prepare('DELETE FROM plays'),env.DB.prepare('DELETE FROM customers')]);
     // Xóa dữ liệu test nhưng đưa bộ đếm về đầu chu kỳ 1.
     await ensureCycleState(env);
     await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=1,position=0,updated_at=datetime('now') WHERE id=1").run();
