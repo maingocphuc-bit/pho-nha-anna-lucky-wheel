@@ -98,6 +98,34 @@ async function adminOk(req, env) {
   return (cookieToken && cookieToken === account.token_hash) || (headerToken && headerToken === account.token_hash);
 }
 
+
+async function addColumnIfMissing(env, table, columns, name, sql) {
+  if (columns.has(name)) return;
+  try {
+    await env.DB.prepare(sql).run();
+  } catch (e) {
+    // D1 can receive the first requests concurrently after deployment. Two
+    // requests may both observe a missing column and race on ALTER TABLE.
+    // Treat a duplicate-column race as success; any other error is real and
+    // must still bubble up to the request handler.
+    const msg = String(e?.message || e || '').toLowerCase();
+    if (!msg.includes('duplicate column') && !msg.includes('already exists')) throw e;
+  }
+  columns.add(name);
+}
+
+async function safeCreateIndex(env, sql) {
+  try {
+    await env.DB.prepare(sql).run();
+  } catch (e) {
+    // IF NOT EXISTS is normally enough, but concurrent first requests can
+    // still race in D1. Re-read the schema only for a harmless "already
+    // exists" race; all other errors remain visible to the caller.
+    const msg = String(e?.message || e || '').toLowerCase();
+    if (!msg.includes('already exists')) throw e;
+  }
+}
+
 async function ensureCoreTables(env) {
   // IMPORTANT: older D1 deployments may already have these tables with an
   // earlier schema. CREATE TABLE IF NOT EXISTS does NOT repair an existing
@@ -137,7 +165,7 @@ async function ensureCoreTables(env) {
     ['created_at', "ALTER TABLE customers ADD COLUMN created_at TEXT"],
     ['updated_at', "ALTER TABLE customers ADD COLUMN updated_at TEXT"]
   ];
-  for (const [name, sql] of customerAdds) if (!customerCols.has(name)) await env.DB.prepare(sql).run();
+  for (const [name, sql] of customerAdds) await addColumnIfMissing(env, 'customers', customerCols, name, sql);
   await env.DB.prepare("UPDATE customers SET created_at=COALESCE(created_at,datetime('now')), updated_at=COALESCE(updated_at,datetime('now')) WHERE created_at IS NULL OR updated_at IS NULL").run();
 
   const playInfo = await env.DB.prepare('PRAGMA table_info(plays)').all();
@@ -158,16 +186,16 @@ async function ensureCoreTables(env) {
     ['redemption_count', 'ALTER TABLE plays ADD COLUMN redemption_count INTEGER NOT NULL DEFAULT 0'],
     ['expires_at', 'ALTER TABLE plays ADD COLUMN expires_at TEXT']
   ];
-  for (const [name, sql] of playAdds) if (!playCols.has(name)) await env.DB.prepare(sql).run();
+  for (const [name, sql] of playAdds) await addColumnIfMissing(env, 'plays', playCols, name, sql);
   await env.DB.prepare("UPDATE plays SET created_at=COALESCE(created_at,datetime('now')), redeemed=COALESCE(redeemed,0), cycle_no=COALESCE(cycle_no,1), cycle600_no=COALESCE(cycle600_no,1), redemption_count=COALESCE(redemption_count,0) WHERE created_at IS NULL OR redeemed IS NULL OR cycle_no IS NULL OR cycle600_no IS NULL OR redemption_count IS NULL").run();
 
   // Non-unique indexes are deliberately used for legacy compatibility. The
   // application now checks/updates a customer explicitly instead of relying
   // on ON CONFLICT(phone), so an old database without a UNIQUE phone index is
   // still fully usable and existing duplicate test rows are not destroyed.
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)').run();
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_customer_date ON plays(customer_id,play_date)').run();
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_reward_code ON plays(reward_code)').run();
+  await safeCreateIndex(env, 'CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)');
+  await safeCreateIndex(env, 'CREATE INDEX IF NOT EXISTS idx_plays_customer_date ON plays(customer_id,play_date)');
+  await safeCreateIndex(env, 'CREATE INDEX IF NOT EXISTS idx_plays_reward_code ON plays(reward_code)');
 }
 
 async function ensurePlayColumns(env) {
@@ -196,7 +224,7 @@ async function ensureDailyConfig(env) {
     // Add the column first, then backfill it in a separate UPDATE.
     ['updated_at', 'ALTER TABLE daily_config ADD COLUMN updated_at TEXT']
   ];
-  for (const [name,sql] of adds) if (!cols.has(name)) await env.DB.prepare(sql).run();
+  for (const [name,sql] of adds) await addColumnIfMissing(env, 'daily_config', cols, name, sql);
   await env.DB.prepare("UPDATE daily_config SET updated_at=COALESCE(updated_at,datetime('now')) WHERE id=1").run();
   await env.DB.prepare(`INSERT OR IGNORE INTO daily_config(id,total_daily,free_daily,task_daily,task_enabled,task_label)
     VALUES(1,4,2,2,1,'Mời bạn cùng ăn tại PHỞ NHÀ ANNA')`).run();
@@ -240,7 +268,7 @@ async function ensureCycleConfig(env) {
     ['pending_quota_prize3', 'ALTER TABLE cycle_config ADD COLUMN pending_quota_prize3 INTEGER'],
     ['pending_quota_prize4', 'ALTER TABLE cycle_config ADD COLUMN pending_quota_prize4 INTEGER']
   ];
-  for (const [name,sql] of adds) if (!cols.has(name)) await env.DB.prepare(sql).run();
+  for (const [name,sql] of adds) await addColumnIfMissing(env, 'cycle_config', cols, name, sql);
   await env.DB.prepare("UPDATE cycle_config SET updated_at=COALESCE(updated_at,datetime('now')) WHERE id=1").run();
   await env.DB.prepare(`INSERT OR IGNORE INTO cycle_config(
     id,cycle_size,pending_cycle_size,quota_prize0,quota_prize1,quota_prize2,quota_prize3,quota_prize4,
@@ -430,8 +458,8 @@ async function ensureUnlockTables(env) {
   )`).run();
   const info=await env.DB.prepare('PRAGMA table_info(customer_unlocks)').all();
   const cols=new Set((info.results||[]).map(x=>String(x.name)));
-  if(!cols.has('token')) await env.DB.prepare('ALTER TABLE customer_unlocks ADD COLUMN token TEXT').run();
-  if(!cols.has('created_at')) await env.DB.prepare("ALTER TABLE customer_unlocks ADD COLUMN created_at TEXT").run();
+  await addColumnIfMissing(env, 'customer_unlocks', cols, 'token', 'ALTER TABLE customer_unlocks ADD COLUMN token TEXT');
+  await addColumnIfMissing(env, 'customer_unlocks', cols, 'created_at', 'ALTER TABLE customer_unlocks ADD COLUMN created_at TEXT');
 
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS unlock_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -456,9 +484,9 @@ async function ensureUnlockTables(env) {
     ['created_at','ALTER TABLE unlock_tokens ADD COLUMN created_at TEXT'],
     ['used_at','ALTER TABLE unlock_tokens ADD COLUMN used_at TEXT']
   ];
-  for(const [name,sql] of adds2) if(!cols2.has(name)) await env.DB.prepare(sql).run();
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customer_unlocks_lookup ON customer_unlocks(customer_id, unlock_date)').run();
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_unlock_tokens_token ON unlock_tokens(token)').run();
+  for(const [name,sql] of adds2) await addColumnIfMissing(env, 'unlock_tokens', cols2, name, sql);
+  await safeCreateIndex(env, 'CREATE INDEX IF NOT EXISTS idx_customer_unlocks_lookup ON customer_unlocks(customer_id, unlock_date)');
+  await safeCreateIndex(env, 'CREATE INDEX IF NOT EXISTS idx_unlock_tokens_token ON unlock_tokens(token)');
 }
 
 async function customerUnlocks(env, customerId, date) {
