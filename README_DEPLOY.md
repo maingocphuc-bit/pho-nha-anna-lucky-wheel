@@ -52,3 +52,9 @@ This package includes an additive D1 schema-repair pass for older deployments. I
 The Admin reward QR scanner is a branded PHỞ NHÀ ANNA modal window. It no longer occupies an inline block in the page. The browser's own camera permission prompt may still appear when permission has not previously been granted.
 
 Deploy the complete package (`wrangler deploy`) and then hard-refresh the site. Verify: Admin login → F5 → status → unlock → delete one → delete all → daily/cycle config → QR camera modal → QR scan → redeem; and Index register → spin → result QR.
+
+
+## V10.8 critical server repair
+V10.8 is rebuilt directly from the owner's V10.7 package. It fixes the two server-side failure paths found during source review: D1 `UPDATE ... RETURNING` result handling in the spin counter, and legacy `plays` schema/index ordering. Registration also no longer depends on a legacy UNIQUE(phone) constraint. A global cycle lock serializes reservations across customers.
+
+Deploy the entire package. Do not mix `worker.js` from an older version with the new `public/` files. Do not delete the D1 database.
