@@ -592,41 +592,10 @@ async function api(req, env, url) {
     // This rule is per customer, not global: another customer's result is irrelevant.
     if (customerHasTwoWins && isWinningPrize(i)) i=5;
 
-    // At the end of a cycle, try to rescue any still-due special quota by moving
-    // an UNREDEEMED earlier consolation/regular result to the special prize. This
-    // preserves the cycle quota without changing a redeemed customer reward.
-    if (cyclePosition===cycleSize && debt1>0) {
-      const prior=await env.DB.prepare(`
-        SELECT p.id,p.customer_id,p.prize_index,p.reward_code
-        FROM plays p
-        WHERE p.cycle600_no=? AND p.prize_index IN (2,3,4,5) AND COALESCE(p.redeemed,0)=0
-          AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=0)
-        ORDER BY p.cycle600_position DESC LIMIT 50`).bind(cycleNo).all();
-      for(const cand of (prior.results||[])) {
-        const h=await env.DB.prepare('SELECT prize_index FROM plays WHERE customer_id=? ORDER BY id DESC LIMIT 2').bind(cand.customer_id).all();
-        const hs=h.results||[];
-        if(hs.length===2 && hs.every(r=>isWinningPrize(r.prize_index))) continue;
-        await env.DB.prepare('UPDATE plays SET prize_index=1,prize_name=?,expires_at=? WHERE id=? AND COALESCE(redeemed,0)=0')
-          .bind(PRIZES[1].name,specialExpires(1,d),cand.id).run();
-        debt1--; break;
-      }
-    }
-    if (cyclePosition===cycleSize && debt0>0) {
-      const prior=await env.DB.prepare(`
-        SELECT p.id,p.customer_id,p.prize_index,p.reward_code
-        FROM plays p
-        WHERE p.cycle600_no=? AND p.prize_index IN (2,3,4,5) AND COALESCE(p.redeemed,0)=0
-          AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=1)
-        ORDER BY p.cycle600_position DESC LIMIT 50`).bind(cycleNo).all();
-      for(const cand of (prior.results||[])) {
-        const h=await env.DB.prepare('SELECT prize_index FROM plays WHERE customer_id=? ORDER BY id DESC LIMIT 2').bind(cand.customer_id).all();
-        const hs=h.results||[];
-        if(hs.length===2 && hs.every(r=>isWinningPrize(r.prize_index))) continue;
-        await env.DB.prepare('UPDATE plays SET prize_index=0,prize_name=?,expires_at=? WHERE id=? AND COALESCE(redeemed,0)=0')
-          .bind(PRIZES[0].name,specialExpires(0,d),cand.id).run();
-        debt0--; break;
-      }
-    }
+    // Do NOT rewrite an earlier completed spin at the end of the cycle.
+    // Every issued result/reward code is immutable once the spin is recorded.
+    // If a special prize could not be awarded in this cycle, the deferred debt
+    // is simply cleared when the next cycle starts rather than changing history.
 
     // Persist deferred special quotas for the current cycle. They are reset when a
     // cycle is reset/advanced, so the quota belongs to the cycle that generated it.
