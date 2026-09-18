@@ -16,6 +16,7 @@ const MAX_CYCLE_SIZE = 1000000;
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, X-Admin-Token',
+  'Access-Control-Allow-Credentials': 'true',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS'
 };
 
@@ -183,43 +184,81 @@ function validateQuotas(size, quotas) {
   return {ok:true,quotas:q,consolation:size-total};
 }
 
-function quotaPositions(count, size, startRatio, endRatio, preferLast=false) {
+function quotaPositions(count, size, startRatio, endRatio, preferLast=false, occupied=new Set()) {
   if (count <= 0) return [];
-  if (count === 1 && preferLast) return [size];
   const start = Math.max(1, Math.round(size * startRatio));
   const end = Math.max(start, Math.min(size, Math.round(size * endRatio)));
   const out=[];
-  for(let k=1;k<=count;k++) {
-    const pos = Math.round(start + (end-start) * (k/(count+1)));
-    out.push(Math.max(1,Math.min(size,pos)));
+  const reserveLast = preferLast && end===size;
+  const normalCount = reserveLast ? Math.max(0,count-1) : count;
+  for(let k=1;k<=normalCount;k++) {
+    let ideal = Math.round(start + (end-start) * (k/(normalCount+1)));
+    ideal=Math.max(start,Math.min(end,ideal));
+    let pos=ideal;
+    if(occupied.has(pos)) {
+      let found=0;
+      for(let d=1; d<=Math.max(end-start+1,size); d++) {
+        const a=ideal-d, b=ideal+d;
+        if(a>=start && !occupied.has(a)){found=a;break;}
+        if(b<=end && !occupied.has(b)){found=b;break;}
+      }
+      if(!found) continue;
+      pos=found;
+    }
+    occupied.add(pos); out.push(pos);
   }
+  if(reserveLast && out.length<count && !occupied.has(size)){occupied.add(size);out.push(size);}
   return out;
 }
 
 function specialSchedule(cycleNo, cycleSize, quotas) {
   const q50 = Number(quotas?.[1]||0), q2 = Number(quotas?.[0]||0), size=Math.max(1,Number(cycleSize));
+  const occupied=new Set();
   const p50 = Number(cycleNo)===1
-    ? quotaPositions(q50,size,0.10,0.22,false)
-    : quotaPositions(q50,size,0.45,0.59,false);
+    ? quotaPositions(q50,size,0.10,0.22,false,occupied)
+    : quotaPositions(q50,size,0.45,0.59,false,occupied);
   const p2 = Number(cycleNo)===1
-    ? quotaPositions(q2,size,0.20,0.30,false)
-    : quotaPositions(q2,size,0.95,1.00,true);
+    ? quotaPositions(q2,size,0.20,0.30,false,occupied)
+    : quotaPositions(q2,size,0.95,1.00,true,occupied);
   return {1:p50,0:p2};
 }
 
-function chooseEvenly(counts, quotas, position, size) {
-  const candidates=[];
-  for(const i of [2,3,4]) {
-    const quota=Number(quotas?.[i]||0), used=Number(counts[i]||0);
-    if(used>=quota) continue;
-    const due=Math.floor(position*quota/size)-used;
-    const progress=position*quota/size-used;
-    candidates.push({i,due,progress});
+// Build one deterministic prize map for the whole cycle. Regular prizes are
+// spread across the positions not reserved for special prizes; all remaining
+// positions are consolation. This prevents consecutive early wins caused by
+// selecting a regular prize on every non-special spin.
+function buildPrizeSchedule(cycleNo, size, quotas) {
+  const n=Math.max(1,Number(size));
+  const specials=specialSchedule(cycleNo,n,quotas);
+  const map=new Map();
+  for(const idx of [0,1]) for(const p of (specials[idx]||[])) if(p>=1&&p<=n&&!map.has(p)) map.set(p,idx);
+  const available=[];
+  for(let p=1;p<=n;p++) if(!map.has(p)) available.push(p);
+  const regular=[2,3,4];
+  const totalRegular=regular.reduce((s,i)=>s+Math.max(0,Number(quotas?.[i]||0)),0);
+  if(totalRegular>0 && available.length){
+    const assigned={2:0,3:0,4:0}; let assignedTotal=0;
+    for(let j=1;j<=available.length;j++){
+      const targetTotal=Math.min(totalRegular,Math.round(j*totalRegular/available.length));
+      if(targetTotal<=assignedTotal) continue;
+      let best=null;
+      for(const i of regular){
+        const q=Math.max(0,Number(quotas?.[i]||0));
+        if(assigned[i]>=q) continue;
+        const ideal=j*q/available.length;
+        const deficit=ideal-assigned[i];
+        if(!best || deficit>best.deficit || (deficit===best.deficit&&i<best.i)) best={i,deficit};
+      }
+      if(best){map.set(available[j-1],best.i);assigned[best.i]++;assignedTotal++;}
+    }
   }
-  const due=candidates.filter(x=>x.due>0).sort((a,b)=>b.due-a.due || b.progress-a.progress || a.i-b.i);
-  if(due.length) return due[0].i;
-  const future=candidates.sort((a,b)=>b.progress-a.progress || a.i-b.i);
-  return future.length ? future[0].i : 5;
+  return map;
+}
+
+function chooseScheduledPrize(schedule, counts, quotas, position, size) {
+  const wanted=schedule.get(Number(position));
+  if(wanted!==undefined && wanted!==5 && Number(counts[wanted]||0)<Number(quotas?.[wanted]||0)) return wanted;
+  return 5;
 }
 
 async function ensureCycleState(env) {
@@ -235,29 +274,46 @@ async function ensureCycleState(env) {
 
 
 async function ensureUnlockTables(env) {
-  // Some existing D1 databases were created before the unlock tables were included.
-  // Create them lazily and keep the existing data/schema untouched when they already exist.
+  // Repair/extend old D1 schemas as well as creating new tables. Existing rows
+  // are preserved. Older versions did not always have token/created_at fields.
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS customer_unlocks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER NOT NULL,
     unlock_type INTEGER NOT NULL,
     unlock_date TEXT NOT NULL,
-    token TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(customer_id, unlock_type, unlock_date),
-    FOREIGN KEY(customer_id) REFERENCES customers(id)
+    token TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(customer_id, unlock_type, unlock_date)
   )`).run();
+  const info=await env.DB.prepare('PRAGMA table_info(customer_unlocks)').all();
+  const cols=new Set((info.results||[]).map(x=>String(x.name)));
+  if(!cols.has('token')) await env.DB.prepare('ALTER TABLE customer_unlocks ADD COLUMN token TEXT').run();
+  if(!cols.has('created_at')) await env.DB.prepare("ALTER TABLE customer_unlocks ADD COLUMN created_at TEXT").run();
+
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS unlock_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER,
     phone TEXT,
     unlock_type INTEGER NOT NULL,
-    token TEXT NOT NULL UNIQUE,
-    expires_at TEXT NOT NULL,
+    token TEXT UNIQUE,
+    expires_at TEXT,
     status TEXT NOT NULL DEFAULT 'active',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT DEFAULT (datetime('now')),
     used_at TEXT
   )`).run();
+  const info2=await env.DB.prepare('PRAGMA table_info(unlock_tokens)').all();
+  const cols2=new Set((info2.results||[]).map(x=>String(x.name)));
+  const adds2=[
+    ['customer_id','ALTER TABLE unlock_tokens ADD COLUMN customer_id INTEGER'],
+    ['phone','ALTER TABLE unlock_tokens ADD COLUMN phone TEXT'],
+    ['unlock_type', 'ALTER TABLE unlock_tokens ADD COLUMN unlock_type INTEGER'],
+    ['token','ALTER TABLE unlock_tokens ADD COLUMN token TEXT'],
+    ['expires_at','ALTER TABLE unlock_tokens ADD COLUMN expires_at TEXT'],
+    ['status',"ALTER TABLE unlock_tokens ADD COLUMN status TEXT DEFAULT 'active'"],
+    ['created_at','ALTER TABLE unlock_tokens ADD COLUMN created_at TEXT'],
+    ['used_at','ALTER TABLE unlock_tokens ADD COLUMN used_at TEXT']
+  ];
+  for(const [name,sql] of adds2) if(!cols2.has(name)) await env.DB.prepare(sql).run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customer_unlocks_lookup ON customer_unlocks(customer_id, unlock_date)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_unlock_tokens_token ON unlock_tokens(token)').run();
 }
@@ -396,19 +452,21 @@ async function api(req, env, url) {
     };
     const quotas = reserved.quotas || {0:1,1:1,2:6,3:4,4:25};
     const schedules = specialSchedule(cycleNo, cycleSize, quotas);
-    const dueSpecial = (idx) => schedules[idx].filter(p=>p<=cyclePosition).length - counts[idx];
+    const prizeSchedule = buildPrizeSchedule(cycleNo,cycleSize,quotas);
     const special1Available = !history.has0 && Number(quotas[1]||0)>counts[1];
     const special0Available = !history.has1 && Number(quotas[0]||0)>counts[0];
 
-    let i;
-    // Hai giải đặc biệt có vị trí ưu tiên theo từng chu kỳ; nếu số lượng tăng,
-    // các vị trí của cùng một giải được chia đều trong vùng ưu tiên.
-    if (special1Available && await eligibleFor(1) && dueSpecial(1)>0) {
-      i = 1;
-    } else if (special0Available && await eligibleFor(0) && dueSpecial(0)>0) {
-      i = 0;
-    } else {
-      i = chooseEvenly(counts, quotas, cyclePosition, cycleSize);
+    let i = chooseScheduledPrize(prizeSchedule,counts,quotas,cyclePosition,cycleSize);
+    // If a scheduled special is ineligible, keep this position as a regular/
+    // consolation result and let the special be awarded at its next available
+    // scheduled position rather than creating a burst of regular prizes.
+    if(i===1 && (!special1Available || !(await eligibleFor(1)))) i=5;
+    if(i===0 && (!special0Available || !(await eligibleFor(0)))) i=5;
+    if(i===5){
+      const dueSpecial1=schedules[1].filter(p=>p<=cyclePosition).length-counts[1];
+      const dueSpecial0=schedules[0].filter(p=>p<=cyclePosition).length-counts[0];
+      if(dueSpecial1>0 && special1Available && await eligibleFor(1)) i=1;
+      else if(dueSpecial0>0 && special0Available && await eligibleFor(0)) i=0;
     }
 
     // Nếu vị trí 600 gặp khách đã có giải đặc biệt còn lại, tìm lượt thường
@@ -484,8 +542,10 @@ async function api(req, env, url) {
   // Lightweight session check used by admin.html on every page load/F5.
   // It authenticates from the HttpOnly cookie first, so a refresh never depends on page state.
   if (url.pathname === '/api/admin/session' && req.method === 'GET') {
-    const ok=await adminOk(req,env);
-    return json({ok},ok?200:401);
+    const account=await getAdminAccount(env);
+    const ok=!!account && await adminOk(req,env);
+    if(ok) return json({ok:true},200,{'Set-Cookie':adminCookie(account.token_hash)});
+    return json({ok:false},401,{'Set-Cookie':clearAdminCookie()});
   }
 
   if (url.pathname === '/api/admin/logout' && req.method === 'POST') {
