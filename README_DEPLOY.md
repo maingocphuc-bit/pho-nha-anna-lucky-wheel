@@ -34,8 +34,12 @@ The previous V10.1 Admin page referenced changePasswordBtn/currentPassword/newPa
 - ZIP integrity checked.
 
 
-## V10.4 critical server fix
-The Worker now self-heals the core `customers` and `plays` tables before API handling and
-creates the indexes required by the Admin/customer flows. Existing rows are preserved.
-This prevents the generic HTTP 500 "Lỗi máy chủ" when the deployed D1 is older or only
-partially migrated. `ensurePlayColumns()` also runs through the same base-schema repair.
+## V10.5 FINAL — server + camera + branded dialogs
+- Added idempotent D1 core-schema repair for `customers` and `plays`.
+- Added repair of older `daily_config` columns.
+- Admin unlock/delete/history and spin endpoints explicitly ensure their dependency tables before SQL.
+- Replaced browser-native `confirm()`/`prompt()` in Admin with PHỞ NHÀ ANNA branded dialogs.
+- QR camera remains inside the web page as an inline scanner panel. The browser/OS camera permission prompt itself is security-controlled by the browser and cannot be replaced by webpage JavaScript.
+
+## V10.6 verification
+The package was re-tested after the V10.5 fixes. See `TEST_REPORT_V10_6.md` for the automated test matrix and the live-deployment limitation.
