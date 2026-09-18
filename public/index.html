@@ -121,6 +121,7 @@ async function syncPlayerState(){
   try{
     const r=await post('/api/register',{name:document.getElementById('name').value.trim()||'Khách',phone});
     usedToday=Number(r.used||0);
+    if(r.customer?.name) document.getElementById('name').value=r.customer.name;
     totalDaily=Number(r.totalDaily||totalDaily);
     freeDaily=Number(r.freeDaily??freeDaily);
     taskDaily=Number(r.taskDaily??taskDaily);
@@ -144,7 +145,7 @@ async function restoreSession(){
     phone=String(saved.phone).replace(/\D/g,'');
     const r=await post('/api/register',{name:saved.name,phone});
     usedToday=Number(r.used||0); totalDaily=Number(r.totalDaily||4); freeDaily=Number(r.freeDaily??2); taskDaily=Number(r.taskDaily??2); taskEnabled=r.taskEnabled!==false; taskLabel=String(r.taskLabel||'Mời bạn cùng ăn tại PHỞ NHÀ ANNA'); remaining=Number(r.remaining||0); inviteUnlock=!!r.inviteUnlock;
-    document.getElementById('name').value=saved.name;
+    document.getElementById('name').value=r.customer?.name||saved.name;
     document.getElementById('phone').value=phone;
     document.getElementById('register').classList.add('hidden');
     document.getElementById('game').classList.remove('hidden');
@@ -163,7 +164,7 @@ setInterval(syncPlayerState,5000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncPlayerState();});
 async function post(path,data){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});let b={};try{b=await r.json()}catch(e){}if(!r.ok||b.ok===false)throw new Error(b.error||('Máy chủ trả về lỗi '+r.status));return b;}
 function updateTurn(){document.getElementById('turn').textContent='Bạn còn '+remaining+' lượt quay hôm nay';document.getElementById('spin').disabled=busy||remaining<=0; const need=(taskEnabled&&taskDaily>0&&usedToday>=freeDaily&&remaining>0&&!inviteUnlock); document.getElementById('unlockBox').classList.toggle('hidden',!need);}
-document.getElementById('continue').onclick=async()=>{const name=document.getElementById('name').value.trim();phone=document.getElementById('phone').value.replace(/\D/g,'');const msg=document.getElementById('msg');msg.textContent='';if(name.length<2||phone.length<9){msg.textContent='Vui lòng nhập họ tên và số điện thoại hợp lệ.';return}const b=document.getElementById('continue');b.disabled=true;try{const r=await post('/api/register',{name,phone});remaining=Number(r.remaining||0);inviteUnlock=!!r.inviteUnlock;localStorage.setItem('phoAnnaPlayer',JSON.stringify({name,phone,date:todayKey()}));document.getElementById('register').classList.add('hidden');document.getElementById('game').classList.remove('hidden');updateTurn();document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){msg.textContent=e.message}b.disabled=false;};
+document.getElementById('continue').onclick=async()=>{const name=document.getElementById('name').value.trim();phone=document.getElementById('phone').value.replace(/\D/g,'');const msg=document.getElementById('msg');msg.textContent='';if(name.length<2||phone.length<9){msg.textContent='Vui lòng nhập họ tên và số điện thoại hợp lệ.';return}const b=document.getElementById('continue');b.disabled=true;try{const r=await post('/api/register',{name,phone});remaining=Number(r.remaining||0);inviteUnlock=!!r.inviteUnlock;localStorage.setItem('phoAnnaPlayer',JSON.stringify({name:r.customer?.name||name,phone,date:todayKey()}));document.getElementById('register').classList.add('hidden');document.getElementById('game').classList.remove('hidden');updateTurn();document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){msg.textContent=e.message}b.disabled=false;};
 document.getElementById('qrScanner').addEventListener('click',e=>{if(e.target.id==='qrScanner')stopQrScanner();});
 function showNotice(title,text){document.getElementById('noticeTitle').textContent=title;document.getElementById('noticeText').innerHTML=text;document.getElementById('noticeModal').classList.remove('hidden');}
 function closeNotice(){document.getElementById('noticeModal').classList.add('hidden');}
