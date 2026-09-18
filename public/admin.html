@@ -30,6 +30,8 @@
 .anna-modal .secondary{background:#70402c}
 .anna-modal .danger-confirm{background:linear-gradient(#d92d20,#a91510)}
 
+
+.history-card #refreshBtn{display:block;margin:6px auto 10px;transform:translateY(-4px)}
 </style>
 </head>
 <body><div class="wrap">
@@ -38,7 +40,6 @@
 <div id="app" class="hidden">
 <button class="logout" id="logoutBtn">Đăng xuất</button>
 <section class="card"><h2>📊 Trạng thái chu kỳ</h2><div id="statusBox" class="msg">Đang tải...</div></section>
-<section class="card"><h2>🔐 Thay đổi mật khẩu Admin</h2><p class="small">Nhập mật khẩu mới. Sau khi thay đổi thành công, hệ thống sẽ đăng xuất và yêu cầu đăng nhập lại bằng mật khẩu mới.</p><label>Mật khẩu mới</label><input id="newAdminPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="Nhập mật khẩu mới (tối thiểu 8 ký tự)"><button id="changePasswordBtn" type="button">🔑 THAY ĐỔI MẬT KHẨU</button><div id="passwordMsg" class="msg hidden"></div></section>
 <section class="card"><h2>🔓 Mở thêm lượt cho khách</h2><p class="small">Nhân viên chỉ cần nhập <b>1 số điện thoại</b>. Khi bấm mở khóa, hệ thống sẽ cộng đúng số <b>lượt làm nhiệm vụ</b> đang được cấu hình bên dưới.</p><label>Số điện thoại khách</label><input id="unlockPhone" inputmode="tel" placeholder="Nhập số điện thoại khách"><button id="makeBtn">MỞ KHÓA THÊM LƯỢT</button><div id="makeMsg" class="msg hidden"></div></section>
 <section class="card"><h2>🎁 Kiểm tra và đổi quà</h2>
 <label>Mã phần thưởng</label>
@@ -57,6 +58,7 @@
   </div>
 </div>
 <div id="redeemMsg" class="msg hidden"></div></section>
+<section class="card history-card"><h2>📋 Lịch sử lượt quay</h2><button id="refreshBtn">TẢI LẠI DỮ LIỆU</button><div class="tablewrap"><table><thead><tr><th>ID</th><th>Khách hàng</th><th>SĐT</th><th>Ngày</th><th>Phần thưởng</th><th>Đổi quà</th><th>Hạn đổi quà</th></tr></thead><tbody id="playsBody"><tr><td colspan="7">Chưa tải dữ liệu</td></tr></tbody></table></div></section>
 <section class="card"><h2>⚙️ Cấu hình lượt chơi mỗi ngày</h2><p class="small"><b>Thay đổi tại đây sẽ áp dụng cho trang khách hàng và giới hạn hệ thống ngay.</b> Số lượt miễn phí là số lượt khách được quay không cần làm nhiệm vụ. Số lượt làm nhiệm vụ là số lượt được mở thêm sau khi quán xác nhận nhiệm vụ.</p><label>Tổng số lượt / ngày</label><input id="totalDaily" type="number" min="1" max="100" step="1" placeholder="4"><label>Số lượt miễn phí / ngày</label><input id="freeDaily" type="number" min="0" max="100" step="1" placeholder="2"><label>Số lượt làm nhiệm vụ</label><input id="taskDaily" type="number" min="0" max="100" step="1" placeholder="2"><label>Nhiệm vụ để thêm lượt</label><input id="taskLabel" type="text" maxlength="200" placeholder="Mời bạn cùng ăn tại PHỞ NHÀ ANNA"><div id="dailySummary" class="msg">Đang tính...</div><button id="saveDailyBtn">💾 LƯU CẤU HÌNH LƯỢT / NGÀY</button><div id="dailyMsg" class="msg hidden"></div></section>
 <section class="card"><h2>⚙️ Cấu hình chu kỳ & số lượng giải</h2><p class="small"><b>Nguyên tắc:</b> Số lượt/chu kỳ và số lượng từng giải là 2 cấu hình riêng. Nếu anh chỉ đổi số lượt/chu kỳ thì <b>số lượng giải giữ nguyên</b> và hệ thống tự chia đều các giải trong chu kỳ mới. Nếu anh tăng/giảm số lượng một giải, số lượng mới sẽ được chia đều theo toàn bộ chu kỳ.</p><label>Số lượt / chu kỳ</label><input id="cycleSize" type="number" min="100" max="1000000" step="1" placeholder="600">
 <div class="prize-grid">
@@ -69,7 +71,6 @@
 <div id="quotaSummary" class="msg">Giải còn lại: đang tính...</div>
 <p class="small">📌 Giải <b>Chúc Bạn May Mắn Lần Sau</b> không cần nhập số lượng; hệ thống tự lấy phần lượt còn lại sau khi trừ các giải anh đặt.</p>
 <button id="saveCycleBtn">💾 LƯU CẤU HÌNH</button><div id="cycleMsg" class="msg hidden"></div></section>
-
 <section class="card">
 <h2>🗑️ Quản lý dữ liệu khách hàng</h2>
 <div class="delete-tools">
@@ -86,7 +87,7 @@
 </div>
 <div id="deleteMsg" class="msg hidden"></div>
 </section>
-<section class="card"><h2>📋 Lịch sử lượt quay</h2><button id="refreshBtn">TẢI LẠI DỮ LIỆU</button><div class="tablewrap"><table><thead><tr><th>ID</th><th>Khách hàng</th><th>SĐT</th><th>Ngày</th><th>Phần thưởng</th><th>Đổi quà</th><th>Hạn đổi quà</th></tr></thead><tbody id="playsBody"><tr><td colspan="7">Chưa tải dữ liệu</td></tr></tbody></table></div></section>
+<section class="card"><h2>🔐 Thay đổi mật khẩu Admin</h2><p class="small">Nhập mật khẩu mới. Sau khi thay đổi thành công, hệ thống sẽ đăng xuất và yêu cầu đăng nhập lại bằng mật khẩu mới.</p><label>Mật khẩu mới</label><input id="newAdminPassword" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="Nhập mật khẩu mới (tối thiểu 8 ký tự)"><button id="changePasswordBtn" type="button">🔑 THAY ĐỔI MẬT KHẨU</button><div id="passwordMsg" class="msg hidden"></div></section>
 </div></div>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script>
