@@ -77,7 +77,7 @@
 </div>
 <div id="deleteMsg" class="msg hidden"></div>
 </section>
-<section class="card"><h2>📋 Lịch sử lượt quay</h2><button id="refreshBtn">TẢI LẠI DỮ LIỆU</button><div class="tablewrap"><table><thead><tr><th>ID</th><th>Khách hàng</th><th>SĐT</th><th>Ngày</th><th>Phần thưởng</th><th>Đổi quà</th></tr></thead><tbody id="playsBody"><tr><td colspan="6">Chưa tải dữ liệu</td></tr></tbody></table></div></section>
+<section class="card"><h2>📋 Lịch sử lượt quay</h2><button id="refreshBtn">TẢI LẠI DỮ LIỆU</button><div class="tablewrap"><table><thead><tr><th>ID</th><th>Khách hàng</th><th>SĐT</th><th>Ngày</th><th>Phần thưởng</th><th>Đổi quà</th><th>Hạn đổi quà</th></tr></thead><tbody id="playsBody"><tr><td colspan="7">Chưa tải dữ liệu</td></tr></tbody></table></div></section>
 </div></div>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script>
@@ -186,7 +186,10 @@ $('scanBtn').onclick=async()=>{
 };
 $('stopScanBtn').onclick=stopScanner;
 
-async function loadPlays(){const r=await api('/api/admin/plays');if(!r.ok){$('playsBody').innerHTML='<tr><td colspan="6">'+(r.error||'Không tải được dữ liệu')+'</td></tr>';return} $('playsBody').innerHTML=(r.rows||[]).map(x=>`<tr><td>${x.id}</td><td>${esc(x.name)}</td><td>${esc(x.phone)}</td><td>${esc(x.play_date)}</td><td>${esc(x.prize_name)}</td><td>${x.redeemed?'Đã đổi':'Chưa đổi'}</td></tr>`).join('')||'<tr><td colspan="6">Chưa có dữ liệu</td></tr>'}
+function redemptionMax(x){return Number(x.prize_index)===0?2:1}
+function formatVNDate(value){if(!value)return 'Không giới hạn';const d=new Date(value);if(Number.isNaN(d.getTime()))return esc(value);return d.toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})}
+function redemptionStatus(x){const count=Math.max(0,Number(x.redemption_count||0));const max=redemptionMax(x);const expired=!!x.expires_at&&new Date(x.expires_at).getTime()<=Date.now();if(expired)return `<span class="danger">${count}/${max} — QUÁ HẠN</span>`;if(count>=max)return `<span class="ok">${count}/${max} — ĐÃ ĐỔI ĐỦ</span>`;return `${count}/${max} — CÒN ${max-count} LẦN`}
+async function loadPlays(){const r=await api('/api/admin/plays');if(!r.ok){$('playsBody').innerHTML='<tr><td colspan="7">'+(r.error||'Không tải được dữ liệu')+'</td></tr>';return} $('playsBody').innerHTML=(r.rows||[]).map(x=>`<tr><td>${x.id}</td><td>${esc(x.name)}</td><td>${esc(x.phone)}</td><td>${esc(x.play_date)}</td><td>${esc(x.prize_name)}</td><td>${redemptionStatus(x)}</td><td>${x.expires_at?(new Date(x.expires_at).getTime()<=Date.now()?'<span class="danger">ĐÃ QUÁ HẠN</span>':'Còn đến '+formatVNDate(x.expires_at)): 'Không áp dụng'}</td></tr>`).join('')||'<tr><td colspan="7">Chưa có dữ liệu</td></tr>'}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 $('refreshBtn').onclick=loadPlays;
 
