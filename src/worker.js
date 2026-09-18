@@ -98,8 +98,23 @@ async function adminOk(req, env) {
   return (cookieToken && cookieToken === account.token_hash) || (headerToken && headerToken === account.token_hash);
 }
 
+async function tableColumns(env, table) {
+  const info = await env.DB.prepare(`PRAGMA table_info(${table})`).all();
+  return new Set((info.results || []).map(x => String(x.name)));
+}
+
+async function addMissingColumns(env, table, definitions) {
+  const cols = await tableColumns(env, table);
+  for (const [name, definition] of Object.entries(definitions)) {
+    if (!cols.has(name)) {
+      await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`).run();
+    }
+  }
+}
+
 async function ensureCoreTables(env) {
-  // D1 may be from an older deployment. Create only missing tables; never delete data.
+  // D1 may be from any older PHỞ NHÀ ANNA release. Create/repair only missing
+  // tables or columns; never delete or rewrite existing customer/play rows.
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS customers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -107,17 +122,20 @@ async function ensureCoreTables(env) {
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`).run();
+  await addMissingColumns(env, 'customers', {
+    name: 'TEXT', phone: 'TEXT', created_at: "TEXT DEFAULT (datetime('now'))", updated_at: "TEXT DEFAULT (datetime('now'))"
+  });
 
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS plays (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    customer_id INTEGER NOT NULL,
-    play_date TEXT NOT NULL,
-    prize_index INTEGER NOT NULL,
-    prize_name TEXT NOT NULL,
-    reward_code TEXT UNIQUE,
+    customer_id INTEGER,
+    play_date TEXT,
+    prize_index INTEGER,
+    prize_name TEXT,
+    reward_code TEXT,
     redeemed INTEGER NOT NULL DEFAULT 0,
     redeemed_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT DEFAULT (datetime('now')),
     cycle_no INTEGER NOT NULL DEFAULT 1,
     cycle_position INTEGER,
     cycle600_no INTEGER NOT NULL DEFAULT 1,
@@ -125,22 +143,22 @@ async function ensureCoreTables(env) {
     redemption_count INTEGER NOT NULL DEFAULT 0,
     expires_at TEXT
   )`).run();
+  await addMissingColumns(env, 'plays', {
+    customer_id: 'INTEGER', play_date: 'TEXT', prize_index: 'INTEGER', prize_name: 'TEXT',
+    reward_code: 'TEXT', redeemed: 'INTEGER NOT NULL DEFAULT 0', redeemed_at: 'TEXT',
+    created_at: "TEXT DEFAULT (datetime('now'))", cycle_no: 'INTEGER NOT NULL DEFAULT 1',
+    cycle_position: 'INTEGER', cycle600_no: 'INTEGER NOT NULL DEFAULT 1', cycle600_position: 'INTEGER',
+    redemption_count: 'INTEGER NOT NULL DEFAULT 0', expires_at: 'TEXT'
+  });
 
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_customer_date ON plays(customer_id,play_date)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_reward_code ON plays(reward_code)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_cycle_position ON plays(cycle600_no,cycle600_position)').run();
 }
 
 async function ensurePlayColumns(env) {
   await ensureCoreTables(env);
-  const info = await env.DB.prepare('PRAGMA table_info(plays)').all();
-  const cols = new Set((info.results || []).map(x => String(x.name)));
-  const adds = [];
-  if (!cols.has('redemption_count')) adds.push("ALTER TABLE plays ADD COLUMN redemption_count INTEGER NOT NULL DEFAULT 0");
-  if (!cols.has('expires_at')) adds.push("ALTER TABLE plays ADD COLUMN expires_at TEXT");
-  if (!cols.has('cycle600_no')) adds.push("ALTER TABLE plays ADD COLUMN cycle600_no INTEGER NOT NULL DEFAULT 1");
-  if (!cols.has('cycle600_position')) adds.push("ALTER TABLE plays ADD COLUMN cycle600_position INTEGER");
-  for (const sql of adds) await env.DB.prepare(sql).run();
 }
 
 async function ensureDailyConfig(env) {
