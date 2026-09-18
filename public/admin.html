@@ -66,19 +66,29 @@ async function api(path,opt={}){
   let data={}; try{data=await r.json()}catch(e){data={ok:false,error:'Máy chủ trả về dữ liệu không hợp lệ.'}}
   return { ...data, _status:r.status };
 }
+let booting=false;
 async function bootAdmin(){
-  // 1) Primary: HttpOnly cookie. 2) Compatibility: saved token from an older admin page.
+  if(booting)return; booting=true;
+  // Keep the authenticated shell visible during refresh. A transient network
+  // or D1 error must never look like a logout. We clear the saved session only
+  // after the server explicitly returns 401.
+  const hasSaved=!!adminToken;
+  if(hasSaved) setApp(true);
   try{
     const r=await api('/api/admin/session');
-    if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();return;}
-  }catch(e){}
-  if(adminToken){
+    if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();booting=false;return;}
+    if(r._status!==401 && hasSaved){setApp(true);booting=false;return;}
+  }catch(e){
+    if(hasSaved){setApp(true);booting=false;return;}
+  }
+  if(hasSaved){
     try{
       const r=await api('/api/admin/status');
-      if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();return;}
-    }catch(e){}
+      if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();booting=false;return;}
+      if(r._status!==401){setApp(true);booting=false;return;}
+    }catch(e){setApp(true);booting=false;return;}
   }
-  adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false);
+  adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false);booting=false;
 }
 $('loginBtn').onclick=async()=>{hide('loginMsg');try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('password').value})});if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');adminToken=r.token||'';localStorage.setItem('annaAdminToken',adminToken);sessionStorage.setItem('annaAdminToken',adminToken);setApp(true);$('password').value='';loadPlays();loadCycleConfig();loadDailyConfig();loadStatus()}catch(e){show('loginMsg',e.message)}};
 $('logoutBtn').onclick=async()=>{try{await api('/api/admin/logout',{method:'POST'})}catch(e){}adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false)};
