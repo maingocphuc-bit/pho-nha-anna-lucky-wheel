@@ -52,58 +52,31 @@
 </div></div>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script>
-const $=id=>document.getElementById(id);
-let adminToken=localStorage.getItem('annaAdminToken')||sessionStorage.getItem('annaAdminToken')||'';
-function persistAdminToken(token){adminToken=String(token||'');if(adminToken){localStorage.setItem('annaAdminToken',adminToken);sessionStorage.setItem('annaAdminToken',adminToken);}}
-function clearAdminToken(){adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');}
+const $=id=>document.getElementById(id);let adminToken=localStorage.getItem('annaAdminToken')||sessionStorage.getItem('annaAdminToken')||'';
 function show(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}
 function hide(id){$(id).classList.add('hidden')}
 function setApp(on){$('app').classList.toggle('hidden',!on);$('loginCard').classList.toggle('hidden',on)}
 async function api(path,opt={}){
-  const options={...opt,credentials:'same-origin'};
-  options.headers={...(options.headers||{}),'Content-Type':'application/json'};
-  // Token header is retained only as a compatibility fallback; the primary session is the HttpOnly cookie.
-  if(adminToken)options.headers['X-Admin-Token']=adminToken;
-  const r=await fetch(path,options);
+  opt.headers={...(opt.headers||{}),'Content-Type':'application/json'};
+  if(adminToken)opt.headers['X-Admin-Token']=adminToken;
+  const r=await fetch(path,opt);
   let data={}; try{data=await r.json()}catch(e){data={ok:false,error:'Máy chủ trả về dữ liệu không hợp lệ.'}}
-  return { ...data, _status:r.status };
-}
-let booting=false;
-async function bootAdmin(){
-  if(booting)return; booting=true;
-  // Restore the authenticated admin shell immediately on F5 when a saved token exists.
-  // This matches the stable V6 startup flow: the server session/cookie is checked by the API,
-  // but a transient refresh/network response cannot send the page back to Login.
-  if(adminToken){
-    setApp(true);
-    await Promise.allSettled([loadPlays(),loadCycleConfig(),loadDailyConfig(),loadStatus()]);
-    booting=false;
-    return;
+  if(r.status===401){
+    adminToken=''; localStorage.removeItem('annaAdminToken'); sessionStorage.removeItem('annaAdminToken');
+    setApp(false); show('loginMsg',data.error||'Phiên quản lý đã hết hiệu lực. Vui lòng đăng nhập lại.');
   }
-  // No browser token: let the HttpOnly cookie restore the session silently.
-  try{
-    const r=await api('/api/admin/status');
-    if(r.ok){
-      setApp(true);
-      await Promise.allSettled([loadPlays(),loadCycleConfig(),loadDailyConfig(),loadStatus()]);
-    }else{
-      setApp(false);
-    }
-  }catch(e){
-    setApp(false);
-  }
-  booting=false;
+  return data;
 }
-$('loginBtn').onclick=async()=>{hide('loginMsg');try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('password').value})});if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');persistAdminToken(r.token||'');setApp(true);$('password').value='';loadPlays();loadCycleConfig();loadDailyConfig();loadStatus()}catch(e){show('loginMsg',e.message)}};
-$('logoutBtn').onclick=async()=>{try{await api('/api/admin/logout',{method:'POST'})}catch(e){}adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false)};
-$('makeBtn').onclick=async()=>{hide('makeMsg');try{const r=await api('/api/admin/unlock',{method:'POST',body:JSON.stringify({phone:$('unlockPhone').value})});if(!r.ok)throw Error(r.error||'Không mở khóa được');show('makeMsg','✅ '+r.message+' '+r.customer.name+' ('+r.customer.phone+').');$('unlockPhone').value='';loadStatus();}catch(e){show('makeMsg',e.message)}};
+$('loginBtn').onclick=async()=>{hide('loginMsg');try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('password').value})});if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');adminToken=r.token;localStorage.setItem('annaAdminToken',adminToken);sessionStorage.setItem('annaAdminToken',adminToken);setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus()}catch(e){show('loginMsg',e.message)}};
+$('logoutBtn').onclick=()=>{adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false)};
+$('makeBtn').onclick=async()=>{hide('makeMsg');try{const r=await api('/api/admin/unlock',{method:'POST',body:JSON.stringify({phone:$('unlockPhone').value})});if(!r.ok)throw Error(r.error||'Không mở khóa được');show('makeMsg','✅ '+r.message+' '+r.customer.name+' ('+r.customer.phone+').');$('unlockPhone').value='';}catch(e){show('makeMsg',e.message)}};
 
 function renderDailySummary(){const total=Number($('totalDaily').value||0),free=Number($('freeDaily').value||0),task=Number($('taskDaily').value||0);const ok=total>=1&&free>=0&&free<=total&&task>=0&&task<=total-free;$('dailySummary').textContent=ok?'Tổng '+total.toLocaleString('vi-VN')+' lượt/ngày · Miễn phí '+free.toLocaleString('vi-VN')+' · Nhiệm vụ mở thêm '+task.toLocaleString('vi-VN')+' · Còn '+Math.max(0,total-free-task).toLocaleString('vi-VN')+' lượt không cần nhiệm vụ.':'⚠️ Cấu hình chưa hợp lệ: lượt miễn phí + lượt nhiệm vụ không được vượt tổng lượt/ngày.';return ok;}
 async function loadDailyConfig(){try{const r=await api('/api/admin/daily-config');if(!r.ok)throw Error(r.error||'Không tải được cấu hình lượt/ngày');$('totalDaily').value=r.totalDaily;$('freeDaily').value=r.freeDaily;$('taskDaily').value=r.taskDaily;$('taskLabel').value=r.taskLabel||'';renderDailySummary();}catch(e){show('dailyMsg',e.message)}}
 for(const id of ['totalDaily','freeDaily','taskDaily'])$(id).addEventListener('input',renderDailySummary);
 $('saveDailyBtn').onclick=async()=>{hide('dailyMsg');if(!renderDailySummary())return;try{const r=await api('/api/admin/daily-config',{method:'POST',body:JSON.stringify({totalDaily:Number($('totalDaily').value),freeDaily:Number($('freeDaily').value),taskDaily:Number($('taskDaily').value),taskEnabled:true,taskLabel:$('taskLabel').value})});if(!r.ok)throw Error(r.error||'Không lưu được cấu hình');show('dailyMsg','✅ '+r.message);loadStatus();}catch(e){show('dailyMsg',e.message)}};
 
-async function loadStatus(){try{const r=await api('/api/admin/status');if(r.ok){let t='Chu kỳ '+r.cycleNo+': '+Number(r.currentPosition).toLocaleString('vi-VN')+'/'+Number(r.cycleSize).toLocaleString('vi-VN')+' lượt\n'+'Tổng lượt đã quay: '+Number(r.totalPlays).toLocaleString('vi-VN');if(r.daily)t+='\nLượt/ngày: '+r.daily.totalDaily+' (miễn phí '+r.daily.freeDaily+', nhiệm vụ '+r.daily.taskDaily+')';if(r.pendingCycleSize)t+='\nChu kỳ kế tiếp: '+Number(r.pendingCycleSize).toLocaleString('vi-VN')+' lượt';$('statusBox').textContent=t;}else $('statusBox').textContent=r.error||'Không tải được trạng thái chu kỳ.';}catch(e){$('statusBox').textContent='Không tải được trạng thái chu kỳ: '+e.message}}
+async function loadStatus(){try{const r=await api('/api/admin/status');if(r.ok){let t='Chu kỳ '+r.cycleNo+': '+Number(r.currentPosition).toLocaleString('vi-VN')+'/'+Number(r.cycleSize).toLocaleString('vi-VN')+' lượt · Tổng lượt đã quay: '+Number(r.totalPlays).toLocaleString('vi-VN');if(r.pendingCycleSize)t+=' · Chu kỳ kế tiếp: '+Number(r.pendingCycleSize).toLocaleString('vi-VN');if(r.daily)t+=' · Lượt/ngày: '+r.daily.totalDaily+' (miễn phí '+r.daily.freeDaily+', nhiệm vụ '+r.daily.taskDaily+')';$('statusBox').textContent=t;}else $('statusBox').textContent=r.error||'Không tải được trạng thái chu kỳ.';}catch(e){$('statusBox').textContent='Không tải được trạng thái chu kỳ: '+e.message}}
 function renderQuotaSummary(size,q){const used=[0,1,2,3,4].reduce((s,i)=>s+Number(q?.[i]||0),0);$('quotaSummary').textContent='Tổng giải có quà: '+used.toLocaleString('vi-VN')+' · Chúc Bạn May Mắn Lần Sau: '+Math.max(0,Number(size||0)-used).toLocaleString('vi-VN');}
 async function loadCycleConfig(){try{const r=await api('/api/admin/cycle-config');if(r.ok){$('cycleSize').value=r.cycleSize;for(const i of [0,1,2,3,4])$('quota'+i).value=Number(r.quotas?.[i]??0);renderQuotaSummary(r.cycleSize,r.quotas);let text='Hiện tại: '+Number(r.currentPosition).toLocaleString('vi-VN')+'/'+Number(r.cycleSize).toLocaleString('vi-VN')+' lượt';if(r.pendingCycleSize)text+=' · Chu kỳ kế tiếp: '+Number(r.pendingCycleSize).toLocaleString('vi-VN')+' lượt với cấu hình giải mới';show('cycleMsg',text)}}catch(e){show('cycleMsg','Không tải được cấu hình: '+e.message)}}
 for(const id of ['cycleSize','quota0','quota1','quota2','quota3','quota4'])$(id).addEventListener('input',()=>renderQuotaSummary(Number($('cycleSize').value),{0:Number($('quota0').value||0),1:Number($('quota1').value||0),2:Number($('quota2').value||0),3:Number($('quota3').value||0),4:Number($('quota4').value||0)}));
@@ -190,5 +163,17 @@ $('deleteAllBtn').onclick=async()=>{
   }catch(e){show('deleteMsg',e.message)}
 };
 
-bootAdmin();
+// The server also keeps an HttpOnly cookie, so F5 continues the admin session even
+// when browser storage is cleared. Local/session storage is only a backward-compatible fallback.
+if(adminToken){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();}
+else {
+  // Try the secure cookie silently. A successful status call keeps the admin screen open.
+  (async()=>{
+    try{
+      const r=await api('/api/admin/status');
+      if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();}
+      else setApp(false);
+    }catch(e){setApp(false)}
+  })();
+}
 </script></body></html>
