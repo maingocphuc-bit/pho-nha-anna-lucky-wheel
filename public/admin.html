@@ -7,11 +7,15 @@
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#4b1e12,#8d3b20);font-family:Arial,sans-serif;color:#3d241b;padding:18px}.wrap{max-width:760px;margin:auto}.brand{text-align:center;color:#ffe7a0;font-size:30px;font-weight:900;margin:12px 0 20px}.card{background:#fff6e4;border:4px solid #e7b83e;border-radius:22px;padding:20px;margin:16px 0;box-shadow:0 8px 0 #542515}h2{margin:0 0 16px;color:#9b2d25}label{display:block;font-weight:700;margin:10px 0 6px}input,select{width:100%;padding:14px;border:2px solid #d9c5a3;border-radius:13px;font-size:17px;background:#fff}button{border:0;border-radius:14px;padding:14px 18px;background:linear-gradient(#ff4035,#df1717);color:white;font-size:17px;font-weight:900;box-shadow:0 4px 0 #8d281b;margin-top:12px;cursor:pointer}button:disabled{opacity:.5}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.msg{padding:12px;border-radius:12px;background:#fff0b9;margin-top:12px;white-space:pre-wrap}.hidden{display:none}.qr{text-align:center;margin-top:15px}.qr img{max-width:280px;width:100%;background:white;padding:12px;border-radius:15px}.token{font-size:20px;font-weight:900;word-break:break-all;text-align:center;margin:10px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px;border-bottom:1px solid #dbc9ac;text-align:left;white-space:nowrap}th{background:#f2d58c}.small{font-size:13px;color:#6d5145}.logout{float:right;background:#70402c;font-size:13px;padding:8px 12px}.ok{color:#137333;font-weight:700}.danger{color:#b3261e;font-weight:700}.dangerBtn{background:linear-gradient(#d92d20,#a91510);width:100%}.muted{color:#6d5145;font-size:13px}@media(max-width:560px){.row{grid-template-columns:1fr}.brand{font-size:24px}}
 
 #scanBtn{background:linear-gradient(#2f9d55,#167238);margin-left:8px}
-#scannerPanel{margin-top:14px;padding:14px;background:#fff;border:2px solid #d9c5a3;border-radius:15px}
-#reader{width:100%;max-width:420px;margin:0 auto}
+#scannerPanel{position:fixed;inset:0;z-index:10000;background:rgba(43,18,10,.72);display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}
+#scannerPanel.hidden,#scannerPanel[aria-hidden="true"]{display:none!important}
+.anna-camera-modal{width:min(520px,100%);max-height:calc(100vh - 36px);overflow:auto;box-sizing:border-box;background:#fff6e4;border:4px solid #e7b83e;border-radius:22px;padding:22px;box-shadow:0 10px 0 #542515;color:#3d241b;text-align:center}
+.anna-camera-modal h3{margin:0 0 10px;color:#9b2d25;font-size:22px}
+#reader{width:100%;max-width:420px;margin:12px auto 0;background:#fff;border-radius:14px;overflow:hidden}
+#reader video{width:100%!important;height:auto!important;display:block}
 .scan-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 .scan-actions button{margin-top:8px}
-@media(max-width:560px){#scanBtn{margin-left:0;width:100%}}
+@media(max-width:560px){#scanBtn{margin-left:0;width:100%}.anna-camera-modal{padding:16px;border-width:3px}.anna-camera-modal h3{font-size:20px}}
 .prize-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}.prize-grid input{font-weight:900}.prize-grid label{font-size:14px;line-height:1.25}.msg{line-height:1.45}@media(max-width:560px){.prize-grid{grid-template-columns:1fr}}
 
 .delete-tools{margin-top:14px;padding:14px;background:#fff;border:2px solid #e7b83e;border-radius:16px}
@@ -25,12 +29,6 @@
 .anna-modal .modal-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px}
 .anna-modal .secondary{background:#70402c}
 .anna-modal .danger-confirm{background:linear-gradient(#d92d20,#a91510)}
-.scanner-modal{max-height:90vh;overflow:auto;text-align:center}
-.scanner-modal #reader{width:100%;max-width:420px;margin:12px auto}
-.scanner-modal #reader video{width:100%!important;border-radius:14px}
-.scanner-modal .scan-actions{justify-content:center}
-.scanner-modal .secondary{background:#70402c}
-@media(max-width:560px){.scanner-modal{padding:16px}.scanner-modal #reader{max-width:100%}}
 
 </style>
 </head>
@@ -41,23 +39,6 @@
 <button class="logout" id="logoutBtn">Đăng xuất</button>
 <section class="card"><h2>📊 Trạng thái chu kỳ</h2><div id="statusBox" class="msg">Đang tải...</div></section>
 <section class="card"><h2>🔓 Mở thêm lượt cho khách</h2><p class="small">Nhân viên chỉ cần nhập <b>1 số điện thoại</b>. Khi bấm mở khóa, hệ thống sẽ cộng đúng số <b>lượt làm nhiệm vụ</b> đang được cấu hình bên dưới.</p><label>Số điện thoại khách</label><input id="unlockPhone" inputmode="tel" placeholder="Nhập số điện thoại khách"><button id="makeBtn">MỞ KHÓA THÊM LƯỢT</button><div id="makeMsg" class="msg hidden"></div></section>
-<section class="card"><h2>🎁 Kiểm tra và đổi quà</h2>
-<label>Mã phần thưởng</label>
-<input id="rewardCode" placeholder="Ví dụ: ANNA-XXXXXXXX">
-<div class="scan-actions">
-  <button id="scanBtn" type="button">📷 QUÉT QR KHÁCH HÀNG</button>
-  <button id="redeemBtn" type="button">XÁC NHẬN ĐỔI QUÀ</button>
-</div>
-<div id="scannerPanel" class="anna-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="scannerTitle">
-  <div class="anna-modal scanner-modal" onclick="event.stopPropagation()">
-    <h3 id="scannerTitle">📷 QUÉT MÃ QR — PHỞ NHÀ ANNA</h3>
-    <p><b>Đưa mã QR phần thưởng của khách vào khung camera.</b></p>
-    <div id="reader"></div>
-    <div class="scan-actions"><button id="stopScanBtn" type="button" class="secondary">ĐÓNG CAMERA</button></div>
-    <div id="scanMsg" class="msg hidden"></div>
-  </div>
-</div>
-<div id="redeemMsg" class="msg hidden"></div></section>
 <section class="card"><h2>⚙️ Cấu hình lượt chơi mỗi ngày</h2><p class="small"><b>Thay đổi tại đây sẽ áp dụng cho trang khách hàng và giới hạn hệ thống ngay.</b> Số lượt miễn phí là số lượt khách được quay không cần làm nhiệm vụ. Số lượt làm nhiệm vụ là số lượt được mở thêm sau khi quán xác nhận nhiệm vụ.</p><label>Tổng số lượt / ngày</label><input id="totalDaily" type="number" min="1" max="100" step="1" placeholder="4"><label>Số lượt miễn phí / ngày</label><input id="freeDaily" type="number" min="0" max="100" step="1" placeholder="2"><label>Số lượt làm nhiệm vụ</label><input id="taskDaily" type="number" min="0" max="100" step="1" placeholder="2"><label>Nhiệm vụ để thêm lượt</label><input id="taskLabel" type="text" maxlength="200" placeholder="Mời bạn cùng ăn tại PHỞ NHÀ ANNA"><div id="dailySummary" class="msg">Đang tính...</div><button id="saveDailyBtn">💾 LƯU CẤU HÌNH LƯỢT / NGÀY</button><div id="dailyMsg" class="msg hidden"></div></section>
 <section class="card"><h2>⚙️ Cấu hình chu kỳ & số lượng giải</h2><p class="small"><b>Nguyên tắc:</b> Số lượt/chu kỳ và số lượng từng giải là 2 cấu hình riêng. Nếu anh chỉ đổi số lượt/chu kỳ thì <b>số lượng giải giữ nguyên</b> và hệ thống tự chia đều các giải trong chu kỳ mới. Nếu anh tăng/giảm số lượng một giải, số lượng mới sẽ được chia đều theo toàn bộ chu kỳ.</p><label>Số lượt / chu kỳ</label><input id="cycleSize" type="number" min="100" max="1000000" step="1" placeholder="600">
 <div class="prize-grid">
@@ -70,7 +51,23 @@
 <div id="quotaSummary" class="msg">Giải còn lại: đang tính...</div>
 <p class="small">📌 Giải <b>Chúc Bạn May Mắn Lần Sau</b> không cần nhập số lượng; hệ thống tự lấy phần lượt còn lại sau khi trừ các giải anh đặt.</p>
 <button id="saveCycleBtn">💾 LƯU CẤU HÌNH</button><div id="cycleMsg" class="msg hidden"></div></section>
-
+<section class="card"><h2>🎁 Kiểm tra và đổi quà</h2>
+<label>Mã phần thưởng</label>
+<input id="rewardCode" placeholder="Ví dụ: ANNA-XXXXXXXX">
+<div class="scan-actions">
+  <button id="scanBtn" type="button">📷 QUÉT QR KHÁCH HÀNG</button>
+  <button id="redeemBtn" type="button">XÁC NHẬN ĐỔI QUÀ</button>
+</div>
+<div id="scannerPanel" class="anna-camera-backdrop hidden" style="display:none" aria-hidden="true">
+  <div class="anna-camera-modal" role="dialog" aria-modal="true" aria-labelledby="cameraTitle">
+    <h3 id="cameraTitle">📷 QUÉT MÃ QR — PHỞ NHÀ ANNA</h3>
+    <p class="small"><b>Đưa mã QR phần thưởng của khách vào khung camera.</b></p>
+    <div id="reader"></div>
+    <div class="scan-actions"><button id="stopScanBtn" type="button">ĐÓNG CAMERA</button></div>
+    <div id="scanMsg" class="msg hidden"></div>
+  </div>
+</div>
+<div id="redeemMsg" class="msg hidden"></div></section>
 <section class="card">
 <h2>🗑️ Quản lý dữ liệu khách hàng</h2>
 <div class="delete-tools">
@@ -154,6 +151,18 @@ function scanMessage(text){
   if(text){$('scanMsg').textContent=text;$('scanMsg').classList.remove('hidden');}
   else $('scanMsg').classList.add('hidden');
 }
+function openScannerPanel(){
+  const panel=$('scannerPanel');
+  panel.classList.remove('hidden');
+  panel.style.display='flex';
+  panel.setAttribute('aria-hidden','false');
+}
+function closeScannerPanel(){
+  const panel=$('scannerPanel');
+  panel.classList.add('hidden');
+  panel.style.display='none';
+  panel.setAttribute('aria-hidden','true');
+}
 async function stopScanner(){
   if(qrScanner && scannerRunning){
     try{await qrScanner.stop();}catch(e){}
@@ -161,12 +170,12 @@ async function stopScanner(){
   }
   scannerRunning=false;
   qrScanner=null;
-  $('scannerPanel').classList.add('hidden');
+  closeScannerPanel();
 }
 $('scanBtn').onclick=async()=>{
   hide('redeemMsg');
   scanMessage('');
-  $('scannerPanel').classList.remove('hidden');
+  openScannerPanel();
   if(typeof Html5Qrcode==='undefined'){
     scanMessage('Không tải được trình quét QR. Vui lòng kiểm tra kết nối mạng.');
     return;
@@ -180,6 +189,7 @@ $('scanBtn').onclick=async()=>{
       async(decodedText)=>{
         const value=String(decodedText||'').trim();
         if(!value)return;
+        // Hỗ trợ cả mã thuần ANNA-... và đường dẫn có chứa mã.
         const match=value.match(/ANNA-[A-Z0-9]+/i);
         $('rewardCode').value=match?match[0].toUpperCase():value;
         scanMessage('✅ Đã quét mã thành công. Anh bấm “XÁC NHẬN ĐỔI QUÀ”.');
@@ -190,12 +200,11 @@ $('scanBtn').onclick=async()=>{
   }catch(e){
     scanMessage('Không mở được camera. Anh hãy cấp quyền camera cho trình duyệt rồi thử lại.');
     scannerRunning=false;
-    try{if(qrScanner)await qrScanner.clear();}catch(_){}
     qrScanner=null;
   }
 };
 $('stopScanBtn').onclick=stopScanner;
-$('scannerPanel').onclick=e=>{if(e.target===$('scannerPanel'))stopScanner()};
+$('scannerPanel').addEventListener('click',e=>{if(e.target===$('scannerPanel'))stopScanner();});
 
 function redemptionMax(x){return Number(x.prize_index)===0?2:1}
 function formatVNDate(value){if(!value)return 'Không giới hạn';const d=new Date(value);if(Number.isNaN(d.getTime()))return esc(value);return d.toLocaleString('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})}
@@ -290,5 +299,6 @@ $('deleteAllBtn').onclick=async()=>{
   box.querySelector('#annaDeleteAllConfirm').focus();
 };
 
+closeScannerPanel();
 bootAdmin();
 </script></body></html>
