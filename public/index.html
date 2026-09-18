@@ -25,7 +25,7 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
 .pointer{position:absolute;z-index:10;top:-9px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:34px solid transparent;border-right:34px solid transparent;border-top:75px solid #c8171c;filter:drop-shadow(0 5px 4px #0009)}
 .pointer:before{content:"";position:absolute;left:-27px;top:-69px;border-left:27px solid transparent;border-right:27px solid transparent;border-top:53px solid #ff4b3f}
 .pointer:after{content:"";position:absolute;left:-18px;top:-58px;width:36px;height:13px;border-radius:50%;background:#ff8b70}
-.hub{position:absolute;z-index:8;width:88px;height:88px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 25%,#fffbd8,#e2a41b 72%);border:7px solid #fff;box-shadow:0 4px 10px #0008,0 0 0 5px #a96b19;font-size:43px}
+.hub{position:absolute;z-index:8;width:88px;height:88px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 25%,#fffbd8,#e2a41b 72%);border:7px solid #fff;box-shadow:0 4px 10px #0008,0 0 0 5px #a96b19;overflow:hidden}.hub img{width:100%;height:100%;display:block;object-fit:cover}
 #turn{text-align:center;font-weight:900;font-size:clamp(18px,4.5vw,26px);margin:18px 0 12px}.prizes{display:grid;gap:9px}.prize.special-prize{border:3px solid #d59a18;background:linear-gradient(135deg,#fff5bd,#ffe39a)}.prize{background:#fff;border-radius:18px;padding:12px 15px;font-size:clamp(15px,3.8vw,20px);font-weight:800;box-shadow:0 2px 5px #0001}.rules{font-size:16px;line-height:1.55}.rules h3{color:#a42b24;font-size:23px}.rules p{margin:12px 0}.rules .important-rule{background:linear-gradient(135deg,#fff0a6,#ffd66b);border:3px solid #d59a18;border-radius:14px;padding:14px 16px;font-weight:900;color:#7c241c;box-shadow:0 3px 0 #b87912,0 5px 12px #0002}.rules .extra-rule{background:rgba(120,91,55,.10);border:2px dashed #c6a46a;border-radius:14px;padding:13px 16px;color:#6e6257;font-size:.94em}.exchange-rules{margin-top:16px;padding:18px 18px;background:linear-gradient(145deg,#fffaf0,#ffefd0);border:3px solid #c6a46a;border-radius:18px;box-shadow:0 5px 0 #a98a55,0 8px 16px #0002}.exchange-rules h4{margin:0 0 12px;color:#8f3028;font-size:1.18em;font-weight:900;text-shadow:0 1px 0 #fff8d8}.exchange-rules ul{margin:0;padding-left:24px}.exchange-rules li{margin:8px 0;color:#6e6257;font-weight:700}.exchange-rules li.qr-rule{list-style:none;margin:0 0 14px;padding:14px 16px;background:linear-gradient(135deg,#249642,#147235);border:3px solid #11602d;border-radius:14px;color:#fff;font-weight:900;box-shadow:0 4px 0 #0d4f26,0 6px 12px #0002}.exchange-rules li.qr-rule:before{content:"📌 ";}
 .customer-name{position:relative;display:inline-block;color:#d62828;font-weight:1000;text-transform:uppercase;letter-spacing:.2px;text-shadow:0 2px 0 #fff,0 0 8px rgba(255,193,7,.55);animation:customerGlow 1.8s ease-in-out infinite;}
 .customer-name:after{content:'✨';position:absolute;right:-22px;top:-10px;font-size:.55em;animation:customerSparkle 1.4s ease-in-out infinite;}
@@ -94,7 +94,7 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
     <div class="wheel-wrap">
       <div class="wheel-frame"><canvas id="wheel" width="700" height="700"></canvas></div>
       <div class="pointer" aria-hidden="true"></div>
-      <div class="hub" aria-label="Tô phở">🍜</div>
+      <div class="hub" aria-label="Phở Nhà Anna"><img src="/pho-anna-hub.svg" alt="Phở Nhà Anna"></div>
     </div>
     <button id="spin">BẮT ĐẦU QUAY 🎡</button>
     <p id="turn">Bạn còn 0 lượt quay hôm nay</p><div id="unlockBox" class="hidden" style="margin-top:14px;padding:14px;border:2px dashed #c6a46a;border-radius:14px;background:#fff8df"><b>👥 <span id="taskTitle">Làm nhiệm vụ – mở thêm lượt</span></b><p id="taskText" style="margin:8px 0;font-size:14px">Vui lòng hoàn thành nhiệm vụ và nhờ nhân viên quán xác nhận để mở thêm lượt.</p><div id="unlockMsg" class="msg">Vui lòng nhờ nhân viên quán xác nhận để mở thêm lượt.</div></div>
@@ -113,7 +113,7 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
 <script>
 const prizes=['Ăn miễn phí 2 tô phở / 1 tuần','1 Tô Phở Miễn Phí 50K','Giảm giá 5K','1 Chai Sữa Tươi Mát Lạnh','1 Ly Trà Gừng Mát Lạnh','Chúc Bạn May Mắn Lần Sau'];
 const colors=['#d6282e','#f08a24','#f5bd19','#2388df','#249642','#8146aa'];
-const labels=[['🏆 Ăn miễn phí','2 tô phở / 1 tuần'],['🍜 1 Tô Phở','Miễn Phí 50K'],['🏷️ Giảm giá','5K'],['🥛 1 Chai Sữa Tươi','Mát Lạnh'],['🍵 1 Ly Trà Gừng','Mát Lạnh'],['🍀 Chúc Bạn','May Mắn Lần Sau']];
+const labels=[['🏆 Ăn miễn phí','2 tô phở / 1 tuần'],['🍜 1 Tô Phở','Miễn Phí 50K'],['🏷️ Giảm giá','5K'],['🥛 Sữa Tươi','Mát Lạnh'],['🍵 1 Ly Trà Gừng','Mát Lạnh'],['🍀 Chúc Bạn','May Mắn Lần Sau']];
 const wheel=document.getElementById('wheel'),ctx=wheel.getContext('2d');let phone='',remaining=0,usedToday=0,busy=false,angle=0,inviteUnlock=false,totalDaily=4,freeDaily=2,taskDaily=2,taskEnabled=true,taskLabel='Mời bạn cùng ăn tại PHỞ NHÀ ANNA';
 
 function todayKey(){
