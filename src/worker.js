@@ -503,7 +503,7 @@ async function api(req, env, url) {
   if (url.pathname === '/api/register' && req.method === 'POST') {
     const b = await req.json(); const name = String(b.name || '').trim(); const phone = normPhone(b.phone);
     if (name.length < 2 || phone.length < 9 || phone.length > 12) return json({ ok:false, error:'Tên hoặc số điện thoại không hợp lệ.' },400);
-    await env.DB.prepare("INSERT INTO customers(name,phone) VALUES(?,?) ON CONFLICT(phone) DO UPDATE SET name=excluded.name").bind(name,phone).run();
+    await env.DB.prepare("INSERT INTO customers(name,phone) VALUES(?,?) ON CONFLICT(phone) DO NOTHING").bind(name,phone).run();
     const c = await env.DB.prepare('SELECT id,name,phone FROM customers WHERE phone=?').bind(phone).first();
     const d = today(); const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE customer_id=? AND play_date=?').bind(c.id,d).first();
     await ensureUnlockTables(env);
