@@ -97,7 +97,41 @@ async function adminOk(req, env) {
   const headerToken = req.headers.get('X-Admin-Token') || '';
   return (cookieToken && cookieToken === account.token_hash) || (headerToken && headerToken === account.token_hash);
 }
+async function ensureBaseSchema(env) {
+  // Self-heal the core D1 tables used by both customer and Admin APIs.
+  // This is intentionally CREATE IF NOT EXISTS, so existing customer data is preserved.
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`).run();
+
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS plays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    play_date TEXT NOT NULL,
+    prize_index INTEGER NOT NULL,
+    prize_name TEXT NOT NULL,
+    reward_code TEXT UNIQUE,
+    redeemed INTEGER NOT NULL DEFAULT 0,
+    redeemed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    cycle_no INTEGER NOT NULL DEFAULT 1,
+    cycle_position INTEGER,
+    cycle600_no INTEGER NOT NULL DEFAULT 1,
+    cycle600_position INTEGER,
+    redemption_count INTEGER NOT NULL DEFAULT 0,
+    expires_at TEXT
+  )`).run();
+
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_customer_date ON plays(customer_id,play_date)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_reward_code ON plays(reward_code)').run();
+}
+
 async function ensurePlayColumns(env) {
+  await ensureBaseSchema(env);
   const info = await env.DB.prepare('PRAGMA table_info(plays)').all();
   const cols = new Set((info.results || []).map(x => String(x.name)));
   const adds = [];
@@ -436,6 +470,10 @@ async function specialHistory(env, customerId) {
 
 async function api(req, env, url) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+
+  // Make the API resilient to an older/partially migrated D1 database.
+  // Existing rows are preserved; missing tables/columns are repaired lazily.
+  await ensureBaseSchema(env);
 
   if (url.pathname === '/api/daily-config' && req.method === 'GET') {
     const dc=await getDailyConfig(env);
