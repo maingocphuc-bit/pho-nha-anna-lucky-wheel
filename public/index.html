@@ -42,6 +42,7 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
 @media(max-width:430px){main{padding-left:10px;padding-right:10px}.card{padding:20px 12px;border-radius:24px}.wheel-frame{padding:13px}.hub{width:72px;height:72px;font-size:34px;border-width:5px}.pointer{border-left-width:27px;border-right-width:27px;border-top-width:62px}.pointer:before{left:-22px;top:-57px;border-left-width:22px;border-right-width:22px;border-top-width:45px}.pointer:after{left:-14px;top:-48px;width:28px}}
 /* Responsive typography: tiêu đề luôn nằm trên một dòng */
 .brand,.ribbon,.card h2{white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:-.5px}
+#game h2{margin-top:-8px}
 @media(max-width:430px){
   .brand{font-size:clamp(25px,8.2vw,38px)}
   .ribbon{font-size:clamp(18px,5.6vw,30px);padding-left:8px;padding-right:8px}
@@ -83,7 +84,7 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
   </section>
 
   <section id="game" class="card hidden">
-    <h2>🎁 Vận may đang chờ bạn!</h2>
+    <h2 id="fortuneTitle">🎁 Vận may đang chờ bạn!</h2>
     <div class="wheel-wrap">
       <div class="wheel-frame"><canvas id="wheel" width="700" height="700"></canvas></div>
       <div class="pointer" aria-hidden="true"></div>
@@ -145,7 +146,9 @@ async function restoreSession(){
     phone=String(saved.phone).replace(/\D/g,'');
     const r=await post('/api/register',{name:saved.name,phone});
     usedToday=Number(r.used||0); totalDaily=Number(r.totalDaily||4); freeDaily=Number(r.freeDaily??2); taskDaily=Number(r.taskDaily??2); taskEnabled=r.taskEnabled!==false; taskLabel=String(r.taskLabel||'Mời bạn cùng ăn tại PHỞ NHÀ ANNA'); remaining=Number(r.remaining||0); inviteUnlock=!!r.inviteUnlock;
-    document.getElementById('name').value=r.customer?.name||saved.name;
+    const canonicalName=String(r.customer?.name||saved.name);
+    document.getElementById('name').value=canonicalName;
+    document.getElementById('fortuneTitle').textContent='🎁 Vận may đang chờ '+canonicalName;
     document.getElementById('phone').value=phone;
     document.getElementById('register').classList.add('hidden');
     document.getElementById('game').classList.remove('hidden');
@@ -164,7 +167,7 @@ setInterval(syncPlayerState,5000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncPlayerState();});
 async function post(path,data){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});let b={};try{b=await r.json()}catch(e){}if(!r.ok||b.ok===false)throw new Error(b.error||('Máy chủ trả về lỗi '+r.status));return b;}
 function updateTurn(){document.getElementById('turn').textContent='Bạn còn '+remaining+' lượt quay hôm nay';document.getElementById('spin').disabled=busy||remaining<=0; const need=(taskEnabled&&taskDaily>0&&usedToday>=freeDaily&&remaining>0&&!inviteUnlock); document.getElementById('unlockBox').classList.toggle('hidden',!need);}
-document.getElementById('continue').onclick=async()=>{const name=document.getElementById('name').value.trim();phone=document.getElementById('phone').value.replace(/\D/g,'');const msg=document.getElementById('msg');msg.textContent='';if(name.length<2||phone.length<9){msg.textContent='Vui lòng nhập họ tên và số điện thoại hợp lệ.';return}const b=document.getElementById('continue');b.disabled=true;try{const r=await post('/api/register',{name,phone});remaining=Number(r.remaining||0);inviteUnlock=!!r.inviteUnlock;localStorage.setItem('phoAnnaPlayer',JSON.stringify({name:r.customer?.name||name,phone,date:todayKey()}));document.getElementById('register').classList.add('hidden');document.getElementById('game').classList.remove('hidden');updateTurn();document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){msg.textContent=e.message}b.disabled=false;};
+document.getElementById('continue').onclick=async()=>{const name=document.getElementById('name').value.trim();phone=document.getElementById('phone').value.replace(/\D/g,'');const msg=document.getElementById('msg');msg.textContent='';if(name.length<2||phone.length<9){msg.textContent='Vui lòng nhập họ tên và số điện thoại hợp lệ.';return}const b=document.getElementById('continue');b.disabled=true;try{const r=await post('/api/register',{name,phone});remaining=Number(r.remaining||0);inviteUnlock=!!r.inviteUnlock;const canonicalName=String(r.customer?.name||name);document.getElementById('name').value=canonicalName;document.getElementById('fortuneTitle').textContent='🎁 Vận may đang chờ '+canonicalName;localStorage.setItem('phoAnnaPlayer',JSON.stringify({name:canonicalName,phone,date:todayKey()}));document.getElementById('register').classList.add('hidden');document.getElementById('game').classList.remove('hidden');updateTurn();document.getElementById('game').scrollIntoView({behavior:'smooth',block:'center'});}catch(e){msg.textContent=e.message}b.disabled=false;};
 document.getElementById('qrScanner').addEventListener('click',e=>{if(e.target.id==='qrScanner')stopQrScanner();});
 function showNotice(title,text){document.getElementById('noticeTitle').textContent=title;document.getElementById('noticeText').innerHTML=text;document.getElementById('noticeModal').classList.remove('hidden');}
 function closeNotice(){document.getElementById('noticeModal').classList.add('hidden');}
