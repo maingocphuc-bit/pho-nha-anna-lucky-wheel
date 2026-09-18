@@ -97,14 +97,15 @@ async function adminOk(req, env) {
   const headerToken = req.headers.get('X-Admin-Token') || '';
   return (cookieToken && cookieToken === account.token_hash) || (headerToken && headerToken === account.token_hash);
 }
-async function ensureBaseSchema(env) {
-  // Self-heal the core D1 tables used by both customer and Admin APIs.
-  // This is intentionally CREATE IF NOT EXISTS, so existing customer data is preserved.
+
+async function ensureCoreTables(env) {
+  // D1 may be from an older deployment. Create only missing tables; never delete data.
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS customers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     phone TEXT NOT NULL UNIQUE,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`).run();
 
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS plays (
@@ -131,7 +132,7 @@ async function ensureBaseSchema(env) {
 }
 
 async function ensurePlayColumns(env) {
-  await ensureBaseSchema(env);
+  await ensureCoreTables(env);
   const info = await env.DB.prepare('PRAGMA table_info(plays)').all();
   const cols = new Set((info.results || []).map(x => String(x.name)));
   const adds = [];
@@ -152,7 +153,19 @@ async function ensureDailyConfig(env) {
     task_label TEXT NOT NULL DEFAULT 'Mời bạn cùng ăn tại PHỞ NHÀ ANNA',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`).run();
-  await env.DB.prepare(`INSERT OR IGNORE INTO daily_config(id,total_daily,free_daily,task_daily,task_enabled,task_label) VALUES(1,4,2,2,1,'Mời bạn cùng ăn tại PHỞ NHÀ ANNA')`).run();
+  const info = await env.DB.prepare('PRAGMA table_info(daily_config)').all();
+  const cols = new Set((info.results || []).map(x => String(x.name)));
+  const adds = [
+    ['total_daily', 'ALTER TABLE daily_config ADD COLUMN total_daily INTEGER NOT NULL DEFAULT 4'],
+    ['free_daily', 'ALTER TABLE daily_config ADD COLUMN free_daily INTEGER NOT NULL DEFAULT 2'],
+    ['task_daily', 'ALTER TABLE daily_config ADD COLUMN task_daily INTEGER NOT NULL DEFAULT 2'],
+    ['task_enabled', 'ALTER TABLE daily_config ADD COLUMN task_enabled INTEGER NOT NULL DEFAULT 1'],
+    ['task_label', "ALTER TABLE daily_config ADD COLUMN task_label TEXT NOT NULL DEFAULT 'Mời bạn cùng ăn tại PHỞ NHÀ ANNA'"],
+    ['updated_at', "ALTER TABLE daily_config ADD COLUMN updated_at TEXT DEFAULT (datetime('now'))"]
+  ];
+  for (const [name,sql] of adds) if (!cols.has(name)) await env.DB.prepare(sql).run();
+  await env.DB.prepare(`INSERT OR IGNORE INTO daily_config(id,total_daily,free_daily,task_daily,task_enabled,task_label)
+    VALUES(1,4,2,2,1,'Mời bạn cùng ăn tại PHỞ NHÀ ANNA')`).run();
 }
 async function getDailyConfig(env) {
   await ensureDailyConfig(env);
@@ -471,16 +484,13 @@ async function specialHistory(env, customerId) {
 async function api(req, env, url) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
-  // Make the API resilient to an older/partially migrated D1 database.
-  // Existing rows are preserved; missing tables/columns are repaired lazily.
-  await ensureBaseSchema(env);
-
   if (url.pathname === '/api/daily-config' && req.method === 'GET') {
     const dc=await getDailyConfig(env);
     return json({ok:true,totalDaily:Number(dc?.total_daily||4),freeDaily:Number(dc?.free_daily||2),taskDaily:Number(dc?.task_daily||2),taskEnabled:Number(dc?.task_enabled||0)===1,taskLabel:String(dc?.task_label||'')});
   }
 
   if (url.pathname === '/api/player-state' && req.method === 'GET') {
+    await ensureCoreTables(env); await ensurePlayColumns(env); await ensureUnlockTables(env);
     const phone = normPhone(url.searchParams.get('phone'));
     if (phone.length < 9 || phone.length > 12) return json({ok:false,error:'Số điện thoại không hợp lệ.'},400);
     const c = await env.DB.prepare('SELECT id,name,phone FROM customers WHERE phone=?').bind(phone).first();
@@ -499,6 +509,7 @@ async function api(req, env, url) {
   }
 
   if (url.pathname === '/api/register' && req.method === 'POST') {
+    await ensureCoreTables(env); await ensurePlayColumns(env); await ensureUnlockTables(env);
     const b = await req.json(); const name = String(b.name || '').trim(); const phone = normPhone(b.phone);
     if (name.length < 2 || phone.length < 9 || phone.length > 12) return json({ ok:false, error:'Tên hoặc số điện thoại không hợp lệ.' },400);
     await env.DB.prepare("INSERT INTO customers(name,phone) VALUES(?,?) ON CONFLICT(phone) DO UPDATE SET name=excluded.name").bind(name,phone).run();
@@ -515,6 +526,7 @@ async function api(req, env, url) {
   }
 
   if (url.pathname === '/api/spin' && req.method === 'POST') {
+    await ensureCoreTables(env); await ensureDailyConfig(env); await ensureCycleConfig(env); await ensureCycleState(env); await ensureSpinLocks(env); await ensureUnlockTables(env);
     const b = await req.json(); const phone = normPhone(b.phone);
     if (phone.length < 9 || phone.length > 12) return json({ok:false,error:'Số điện thoại không hợp lệ.'},400);
     const c = await env.DB.prepare('SELECT id,name FROM customers WHERE phone=?').bind(phone).first();
@@ -622,6 +634,7 @@ async function api(req, env, url) {
   }
 
   if (url.pathname === '/api/unlock/claim' && req.method === 'POST') {
+    await ensureCoreTables(env); await ensurePlayColumns(env); await ensureUnlockTables(env);
     const b=await req.json(); const phone=normPhone(b.phone); const token=String(b.token||'').trim().toUpperCase();
     if(!token||phone.length<9||phone.length>12)return json({ok:false,error:'Vui lòng nhập đúng số điện thoại và mã mở khóa.'},400);
     const c=await env.DB.prepare('SELECT id FROM customers WHERE phone=?').bind(phone).first(); if(!c)return json({ok:false,error:'Không tìm thấy khách hàng.'},404);
@@ -666,6 +679,11 @@ async function api(req, env, url) {
   }
 
   if (url.pathname === '/api/admin/logout' && req.method === 'POST') {
+    const account=await getAdminAccount(env);
+    if(account && await adminOk(req,env)) {
+      const newTokenHash=await sha256(randomHex(32));
+      await env.DB.prepare("UPDATE admin_credentials SET token_hash=?,updated_at=datetime('now') WHERE id=1").bind(newTokenHash).run();
+    }
     return json({ok:true},200,{'Set-Cookie':clearAdminCookie()});
   }
 
@@ -760,6 +778,7 @@ async function api(req, env, url) {
   }
 
   if (url.pathname === '/api/admin/unlock' && req.method === 'POST') {
+    await ensureCoreTables(env); await ensureDailyConfig(env); await ensureUnlockTables(env);
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
     const b=await req.json(); const phone=normPhone(b.phone);
     if(phone.length<9||phone.length>12)return json({ok:false,error:'Số điện thoại không hợp lệ.'},400);
@@ -785,6 +804,7 @@ async function api(req, env, url) {
   }
 
   if (url.pathname === '/api/admin/delete-customer' && req.method === 'POST') {
+    await ensureCoreTables(env); await ensureUnlockTables(env); await ensureSpinLocks(env);
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
     const phone=normPhone((await req.json()).phone); if(phone.length<9||phone.length>12)return json({ok:false,error:'Số điện thoại không hợp lệ.'},400);
     const c=await env.DB.prepare('SELECT id,name,phone FROM customers WHERE phone=?').bind(phone).first(); if(!c)return json({ok:false,error:'Không tìm thấy khách hàng.'},404);
@@ -798,6 +818,7 @@ async function api(req, env, url) {
     return json({ok:true,message:`Đã xóa khách hàng ${c.name} (${c.phone}) và toàn bộ dữ liệu liên quan.`});
   }
   if (url.pathname === '/api/admin/delete-all-customers' && req.method === 'POST') {
+    await ensureCoreTables(env); await ensureUnlockTables(env); await ensureSpinLocks(env);
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
     await env.DB.batch([env.DB.prepare('DELETE FROM customer_unlocks'),env.DB.prepare('DELETE FROM unlock_tokens'),env.DB.prepare('DELETE FROM spin_locks'),env.DB.prepare('DELETE FROM plays'),env.DB.prepare('DELETE FROM customers')]);
     // Xóa dữ liệu test nhưng đưa bộ đếm về đầu chu kỳ 1.
@@ -809,6 +830,7 @@ async function api(req, env, url) {
   }
 
   if (url.pathname === '/api/admin/plays' && req.method === 'GET') {
+    await ensureCoreTables(env); await ensurePlayColumns(env);
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
     await ensurePlayColumns(env);
     const rows=await env.DB.prepare('SELECT plays.id,customers.name,customers.phone,plays.play_date,plays.prize_name,plays.reward_code,plays.redeemed,plays.redemption_count,plays.redeemed_at,plays.expires_at,plays.cycle600_no,plays.cycle600_position,plays.created_at FROM plays JOIN customers ON customers.id=plays.customer_id ORDER BY plays.id DESC LIMIT 500').all();
@@ -835,6 +857,7 @@ async function api(req, env, url) {
   }
 
   if (url.pathname === '/api/reward' && req.method === 'GET') {
+    await ensureCoreTables(env); await ensurePlayColumns(env);
     const code=url.searchParams.get('code')||''; const r=await env.DB.prepare('SELECT plays.reward_code,plays.prize_name,plays.prize_index,plays.redeemed,plays.redemption_count,plays.redeemed_at,plays.created_at,plays.expires_at,customers.name FROM plays JOIN customers ON customers.id=plays.customer_id WHERE plays.reward_code=?').bind(code).first();
     if(!r)return json({ok:false,error:'Không tìm thấy mã.'},404);
     const expired=r.expires_at?new Date(r.expires_at).getTime()<=Date.now():false;
@@ -857,5 +880,5 @@ export default { async fetch(req,env) {
     }
     return new Response(asset.body,{status:asset.status,statusText:asset.statusText,headers});
   }
-  catch(e){ console.error('Unhandled worker error:',e); return json({ok:false,error:'Lỗi máy chủ. Vui lòng thử lại.'},500); }
+  catch(e){ console.error('Unhandled worker error:',e); return json({ok:false,code:'SERVER_ERROR',error:'Lỗi máy chủ PHỞ NHÀ ANNA. Vui lòng thử lại.'},500); }
 } };
