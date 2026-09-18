@@ -53,9 +53,32 @@
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script>
 const $=id=>document.getElementById(id);
-let adminToken=localStorage.getItem('annaAdminToken')||sessionStorage.getItem('annaAdminToken')||'';
-function persistAdminToken(token){adminToken=String(token||'');if(adminToken){localStorage.setItem('annaAdminToken',adminToken);sessionStorage.setItem('annaAdminToken',adminToken);}}
-function clearAdminToken(){adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');}
+
+// F5/refresh-safe admin session storage.
+// Some mobile browsers / WebViews can throw when reading storage. Never let
+// that exception stop the boot sequence and accidentally show the login screen.
+function safeGet(store,key){
+  try{return store.getItem(key)||''}catch(e){return ''}
+}
+function safeSet(store,key,value){
+  try{store.setItem(key,value)}catch(e){}
+}
+function safeRemove(store,key){
+  try{store.removeItem(key)}catch(e){}
+}
+let adminToken=safeGet(localStorage,'annaAdminToken')||safeGet(sessionStorage,'annaAdminToken')||'';
+function persistAdminToken(token){
+  adminToken=String(token||'');
+  if(adminToken){
+    safeSet(localStorage,'annaAdminToken',adminToken);
+    safeSet(sessionStorage,'annaAdminToken',adminToken);
+  }
+}
+function clearAdminToken(){
+  adminToken='';
+  safeRemove(localStorage,'annaAdminToken');
+  safeRemove(sessionStorage,'annaAdminToken');
+}
 function show(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}
 function hide(id){$(id).classList.add('hidden')}
 function setApp(on){$('app').classList.toggle('hidden',!on);$('loginCard').classList.toggle('hidden',on)}
@@ -64,6 +87,8 @@ async function api(path,opt={}){
   options.headers={...(options.headers||{}),'Content-Type':'application/json'};
   // Token header is retained only as a compatibility fallback; the primary session is the HttpOnly cookie.
   if(adminToken)options.headers['X-Admin-Token']=adminToken;
+  // Explicitly bypass browser/service-worker HTTP caching for auth checks.
+  options.cache='no-store';
   const r=await fetch(path,options);
   let data={}; try{data=await r.json()}catch(e){data={ok:false,error:'Máy chủ trả về dữ liệu không hợp lệ.'}}
   return { ...data, _status:r.status };
@@ -71,26 +96,50 @@ async function api(path,opt={}){
 let booting=false;
 async function bootAdmin(){
   if(booting)return; booting=true;
-  // Keep the authenticated shell visible during refresh. A transient network
-  // or D1 error must never look like a logout. We clear the saved session only
-  // after the server explicitly returns 401.
+
+  // IMPORTANT: on F5 the page must restore the existing authenticated
+  // session before deciding whether to show Login. The server session cookie
+  // is authoritative; the persisted token is a compatibility fallback.
   const hasSaved=!!adminToken;
-  if(hasSaved) setApp(true);
+
+  const openApp=()=>{
+    setApp(true);
+    loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();
+  };
+
+  // First check the HttpOnly session cookie. credentials:'same-origin' in api()
+  // makes the browser send it again after a normal page refresh.
   try{
     const r=await api('/api/admin/session');
-    if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();booting=false;return;}
-    if(r._status!==401 && hasSaved){setApp(true);booting=false;return;}
+    if(r.ok){openApp();booting=false;return;}
+
+    // If the cookie check fails but a persisted token exists, retry with the
+    // token explicitly. This protects against stale/missing browser cookies.
+    if(hasSaved){
+      const r2=await api('/api/admin/status');
+      if(r2.ok){openApp();booting=false;return;}
+
+      // A non-401 response is not an authentication failure. Keep the admin
+      // shell rather than turning a transient server/network issue into logout.
+      if(r._status!==401 || r2._status!==401){
+        setApp(true);booting=false;return;
+      }
+    }
+
+    // Only two explicit 401 responses are treated as a genuinely expired
+    // session. Do not clear storage on network/5xx/parse failures.
+    if(r._status===401 && (!hasSaved || r._status===401)){
+      clearAdminToken();setApp(false);
+    }else if(hasSaved){
+      setApp(true);
+    }else{
+      setApp(false);
+    }
   }catch(e){
-    if(hasSaved){setApp(true);booting=false;return;}
+    // Refresh/network errors must never erase a valid saved credential.
+    if(hasSaved)setApp(true);else setApp(false);
   }
-  if(hasSaved){
-    try{
-      const r=await api('/api/admin/status');
-      if(r.ok){setApp(true);loadPlays();loadCycleConfig();loadDailyConfig();loadStatus();booting=false;return;}
-      if(r._status!==401){setApp(true);booting=false;return;}
-    }catch(e){setApp(true);booting=false;return;}
-  }
-  clearAdminToken();setApp(false);booting=false;
+  booting=false;
 }
 $('loginBtn').onclick=async()=>{hide('loginMsg');try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('password').value})});if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');persistAdminToken(r.token||'');setApp(true);$('password').value='';loadPlays();loadCycleConfig();loadDailyConfig();loadStatus()}catch(e){show('loginMsg',e.message)}};
 $('logoutBtn').onclick=async()=>{try{await api('/api/admin/logout',{method:'POST'})}catch(e){}adminToken='';localStorage.removeItem('annaAdminToken');sessionStorage.removeItem('annaAdminToken');setApp(false)};
