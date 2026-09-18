@@ -120,10 +120,7 @@ async function adminOk(req, env) {
   if (!account) return false;
   const cookieToken = readCookie(req, 'anna_admin');
   const headerToken = req.headers.get('X-Admin-Token') || '';
-  // Check cookie and header independently. A stale/expired cookie must not
-  // mask a still-valid persistent token sent by the page after F5.
-  if (cookieToken && await adminSessionOk(env, cookieToken)) return true;
-  if (headerToken && await adminSessionOk(env, headerToken)) return true;
+  if (await adminSessionOk(env, cookieToken || headerToken)) return true;
   // Legacy compatibility with older pages that stored sha256(password).
   return !!((cookieToken && cookieToken === account.token_hash) || (headerToken && headerToken === account.token_hash));
 }
@@ -657,11 +654,7 @@ async function api(req, env, url) {
     const account=await getAdminAccount(env);
     const ok=!!account && await adminOk(req,env);
     if(ok) {
-      const cookieToken=readCookie(req,'anna_admin');
-      const headerToken=req.headers.get('X-Admin-Token') || '';
-      const token=(cookieToken && (await adminSessionOk(env,cookieToken) || cookieToken===account.token_hash))
-        ? cookieToken
-        : headerToken;
+      const token=readCookie(req,'anna_admin') || req.headers.get('X-Admin-Token') || '';
       return json({ok:true},200,{'Set-Cookie':adminCookie(token)});
     }
     return json({ok:false},401,{'Set-Cookie':clearAdminCookie()});
