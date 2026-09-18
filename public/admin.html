@@ -1,135 +1,387 @@
 <!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PHỞ NHÀ ANNA – Quản lý</title>
+<meta charset="utf-8"><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PHỞ NHÀ ANNA – Quản lý v10.7</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#4b1e12,#8d3b20);font-family:Arial,sans-serif;color:#3d241b;padding:18px}.wrap{max-width:820px;margin:auto}.brand{text-align:center;color:#ffe7a0;font-size:30px;font-weight:900;margin:12px 0 20px}.card{background:#fff6e4;border:4px solid #e7b83e;border-radius:22px;padding:20px;margin:16px 0;box-shadow:0 8px 0 #542515}h2{margin:0 0 16px;color:#9b2d25}label{display:block;font-weight:700;margin:10px 0 6px}input,select{width:100%;padding:14px;border:2px solid #d9c5a3;border-radius:13px;font-size:17px;background:#fff}button{border:0;border-radius:14px;padding:14px 18px;background:linear-gradient(#ff4035,#df1717);color:white;font-size:17px;font-weight:900;box-shadow:0 4px 0 #8d281b;margin-top:12px;cursor:pointer}button:disabled{opacity:.5}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.msg{padding:12px;border-radius:12px;background:#fff0b9;margin-top:12px;white-space:pre-wrap}.hidden{display:none}.qr{text-align:center;margin-top:15px}.qr img{max-width:280px;width:100%;background:white;padding:12px;border-radius:15px}.token{font-size:20px;font-weight:900;word-break:break-all;text-align:center;margin:10px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px;border-bottom:1px solid #dbc9ac;text-align:left;white-space:nowrap}th{background:#f2d58c}.small{font-size:13px;color:#6d5145}.logout{float:right;background:#70402c;font-size:13px;padding:8px 12px}.dangerBtn{background:linear-gradient(#b71c1c,#8e0000)}.scanBox{margin-top:14px}.scanner{width:100%;max-height:320px;background:#111;border-radius:14px;display:none}.scanBtns{display:flex;gap:10px;flex-wrap:wrap}.scanBtns button{flex:1;min-width:150px}.ok{color:#137333;font-weight:700}.danger{color:#b3261e;font-weight:700}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.stat{background:#fff0b9;border:2px solid #e2bd5b;border-radius:14px;padding:12px;text-align:center}.stat b{display:block;font-size:25px;color:#982d24}.stat span{font-size:13px;font-weight:700}@media(max-width:560px){.row,.stats{grid-template-columns:1fr 1fr}.brand{font-size:24px}}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#4b1e12,#8d3b20);font-family:Arial,sans-serif;color:#3d241b;padding:18px}.wrap{max-width:760px;margin:auto}.brand{text-align:center;color:#ffe7a0;font-size:30px;font-weight:900;margin:12px 0 20px}.card{background:#fff6e4;border:4px solid #e7b83e;border-radius:22px;padding:20px;margin:16px 0;box-shadow:0 8px 0 #542515}h2{margin:0 0 16px;color:#9b2d25}label{display:block;font-weight:700;margin:10px 0 6px}input,select{width:100%;padding:14px;border:2px solid #d9c5a3;border-radius:13px;font-size:17px;background:#fff}button{border:0;border-radius:14px;padding:14px 18px;background:linear-gradient(#ff4035,#df1717);color:white;font-size:17px;font-weight:900;box-shadow:0 4px 0 #8d281b;margin-top:12px;cursor:pointer}button:disabled{opacity:.5}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.msg{padding:12px;border-radius:12px;background:#fff0b9;margin-top:12px;white-space:pre-wrap}.hidden{display:none}.qr{text-align:center;margin-top:15px}.qr img{max-width:280px;width:100%;background:white;padding:12px;border-radius:15px}.token{font-size:20px;font-weight:900;word-break:break-all;text-align:center;margin:10px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px;border-bottom:1px solid #dbc9ac;text-align:left;white-space:nowrap}th{background:#f2d58c}.small{font-size:13px;color:#6d5145}.logout{float:right;background:#70402c;font-size:13px;padding:8px 12px}.ok{color:#137333;font-weight:700}.danger{color:#b3261e;font-weight:700}.dangerBtn{background:linear-gradient(#d92d20,#a91510);width:100%}.muted{color:#6d5145;font-size:13px}@media(max-width:560px){.row{grid-template-columns:1fr}.brand{font-size:24px}}
 
-/* Admin modal UI - đồng bộ phong cách trang khách */
-.modal-backdrop{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.68)}
-.modal-backdrop.hidden{display:none!important}.modal{width:min(100%,430px);max-height:92vh;overflow:auto;background:linear-gradient(145deg,#fffaf0,#ffedc7);border:3px solid #e3b43b;border-radius:24px;box-shadow:0 12px 35px #0009;overflow:hidden;text-align:center}
-.modal-head{padding:18px 18px 14px;background:linear-gradient(#a52d24,#7c1e19);color:#fff4c7;font-size:24px;font-weight:900;line-height:1.2}
-.modal-body{padding:20px 22px 8px;font-size:17px;line-height:1.55;color:#3b2419}.modal-body b{color:#a42b24}
-.modal-body input{width:100%;margin-top:10px;text-align:center;font-weight:800;letter-spacing:1px}
-.modal button{width:calc(100% - 44px);margin:12px 22px 22px;height:52px;font-size:20px}.modal .secondary{background:linear-gradient(#70402c,#542515)}
-.admin-modal-actions{display:flex;gap:10px;padding:0 22px 22px}.admin-modal-actions button{width:100%;margin:8px 0 0}.danger-confirm{background:linear-gradient(#b71c1c,#8e0000)!important}
-#adminQrScanner video{display:block;width:100%;max-height:55vh;object-fit:cover;border-radius:14px;background:#111}.scan-status{font-size:14px;font-weight:700;color:#8f3028;margin:10px 0 4px}
-.modal .warning{background:#fff0b9;border:2px solid #e2bd5b;border-radius:13px;padding:12px;font-weight:800;color:#7c241c;margin-top:10px}
-@media(max-width:430px){.modal-backdrop{padding:12px}.modal-head{font-size:22px}.modal-body{padding:18px 16px 6px}.admin-modal-actions{padding:0 16px 18px}.modal button{width:calc(100% - 32px);margin-left:16px;margin-right:16px}}
+#scanBtn{background:linear-gradient(#2f9d55,#167238);margin-left:8px}
+.scan-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.scan-actions button{margin-top:8px}
+.camera-modal{position:fixed;inset:0;z-index:100001;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(45,20,10,.78)}
+.camera-modal.hidden{display:none!important}
+.camera-card{width:min(94vw,480px);max-height:94vh;overflow:auto;background:linear-gradient(145deg,#fffaf0,#ffedc7);border:4px solid #e5b63d;border-radius:24px;box-shadow:0 14px 42px #0009;overflow:hidden;text-align:center}
+.camera-head{padding:16px 18px;background:linear-gradient(#a72e25,#781d18);color:#fff4c7;font-size:23px;font-weight:900}
+.camera-body{padding:16px 18px 6px;color:#3b2419;font-size:15px;line-height:1.45}
+#reader{width:100%;max-width:420px;margin:12px auto;overflow:hidden;border-radius:16px;background:#111;min-height:260px}
+#reader video{width:100%!important;border-radius:14px}
+.camera-close{width:calc(100% - 36px);margin:10px 18px 20px;background:linear-gradient(#70402c,#542515)}
+.dangerCard{border-color:#d96a48}
+.dangerCard h2{color:#9b2d25}
+.passwordCard{border-color:#d8a52d}
+.passwordCard h2{color:#9b2d25}
+.sectionNote{margin-top:-5px;margin-bottom:10px}
+@media(max-width:560px){#scanBtn{margin-left:0;width:100%}}
+.prize-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}.prize-grid input{font-weight:900}.prize-grid label{font-size:14px;line-height:1.25}.msg{line-height:1.45}@media(max-width:560px){.prize-grid{grid-template-columns:1fr}}
 </style>
+
+<style>
+.anna-dialog{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(45,20,10,.72)}
+.anna-dialog.hidden{display:none!important}
+.anna-dialog-card{width:min(94vw,430px);background:linear-gradient(145deg,#fffaf0,#ffedc7);border:4px solid #e5b63d;border-radius:24px;box-shadow:0 14px 42px #0009;overflow:hidden;text-align:center}
+.anna-dialog-head{padding:16px 18px;background:linear-gradient(#a72e25,#781d18);color:#fff4c7;font-size:23px;font-weight:900}
+.anna-dialog-title{padding:18px 18px 8px;color:#9b2d25;font-size:23px;font-weight:900}
+.anna-dialog-text{padding:8px 22px 12px;color:#3b2419;font-size:17px;line-height:1.5;white-space:pre-line}
+.anna-dialog-input-wrap{padding:4px 22px 10px}
+.anna-dialog-input-wrap input{width:100%;box-sizing:border-box;height:52px;border:3px solid #d9c7a5;border-radius:14px;padding:0 14px;font-size:18px;font-weight:800;background:#fff}
+.anna-dialog-actions{display:flex;gap:10px;padding:10px 20px 20px}
+.anna-dialog-actions button{flex:1;height:52px;border-radius:14px;border:0;font-size:17px;font-weight:900;color:#fff;background:linear-gradient(#ff3b38,#d91e1b);box-shadow:0 5px 0 #8f211b}
+.anna-dialog-actions .anna-secondary{background:linear-gradient(#7a4930,#5b2c1c);box-shadow:0 5px 0 #3d1d12}
+</style>
+
 </head>
-<body>
-<!-- Hộp thoại thông báo dùng chung -->
-<div id="adminNoticeModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="adminNoticeTitle">
-  <div class="modal">
-    <div id="adminNoticeTitle" class="modal-head">ℹ️ Thông báo</div>
-    <div id="adminNoticeText" class="modal-body"></div>
-    <button id="adminNoticeClose" type="button">ĐÃ HIỂU 👍</button>
-  </div>
-</div>
-
-<!-- Hộp thoại xác nhận -->
-<div id="adminConfirmModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="adminConfirmTitle">
-  <div class="modal">
-    <div id="adminConfirmTitle" class="modal-head">⚠️ Xác nhận</div>
-    <div id="adminConfirmText" class="modal-body"></div>
-    <div class="admin-modal-actions">
-      <button id="adminConfirmCancel" type="button" class="secondary">HỦY</button>
-      <button id="adminConfirmOk" type="button" class="danger-confirm">XÁC NHẬN</button>
-    </div>
-  </div>
-</div>
-
-<!-- Xóa toàn bộ: bắt buộc nhập chính xác XOA TAT CA -->
-<div id="deleteAllModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="deleteAllTitle">
-  <div class="modal">
-    <div id="deleteAllTitle" class="modal-head">🚨 XÓA TOÀN BỘ DỮ LIỆU</div>
-    <div class="modal-body">
-      <div class="warning">CẢNH BÁO: Thao tác này sẽ xóa toàn bộ khách hàng, lượt quay, mã mở khóa và lịch sử test. Không thể hoàn tác.</div>
-      <p><b>Để xác nhận, nhập chính xác:</b></p>
-      <p style="font-size:24px;font-weight:900;letter-spacing:2px;color:#b3261e;margin:8px 0">XOA TAT CA</p>
-      <input id="deleteAllConfirmInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Nhập XOA TAT CA">
-    </div>
-    <div class="admin-modal-actions">
-      <button id="deleteAllCancel" type="button" class="secondary">HỦY</button>
-      <button id="deleteAllConfirm" type="button" class="danger-confirm" disabled>XÓA TOÀN BỘ</button>
-    </div>
-  </div>
-</div>
-
-<!-- Camera đổi quà: cùng kiểu hộp thoại với trang khách -->
-<div id="adminQrScanner" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="adminScannerTitle">
-  <div class="modal">
-    <div id="adminScannerTitle" class="modal-head">📷 Quét QR đổi quà</div>
-    <div class="modal-body">
-      <video id="adminScanVideo" playsinline muted></video>
-      <p id="adminScanStatus" class="scan-status">Đang chuẩn bị camera...</p>
-    </div>
-    <button id="adminScannerClose" type="button">ĐÓNG</button>
-  </div>
-</div>
-
-<div class="wrap">
+<body><div class="wrap">
 <div class="brand">🍜 PHỞ NHÀ ANNA<br>TRANG QUẢN LÝ CHỦ QUÁN</div>
-<section id="loginCard" class="card">
-<h2>🔐 Đăng nhập quản lý</h2>
-<div id="setupBox" class="hidden"><p><b>Thiết lập lần đầu:</b> D1 chưa có tài khoản quản trị. Tạo mật khẩu mới từ 8 ký tự trở lên.</p><label>Mật khẩu quản lý mới</label><input id="setupPassword" type="password" autocomplete="new-password"><button id="setupBtn">TẠO TÀI KHOẢN QUẢN TRỊ</button><div id="setupMsg" class="msg hidden"></div><hr></div>
-<label>Mật khẩu quản lý</label><input id="password" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu"><button id="loginBtn">ĐĂNG NHẬP</button><div id="loginMsg" class="msg hidden"></div>
-</section>
+<section id="loginCard" class="card"><h2>🔐 Đăng nhập quản lý</h2><label>Mật khẩu quản lý</label><input id="password" type="password" placeholder="Nhập mật khẩu ADMIN_PASSWORD"><button id="loginBtn">ĐĂNG NHẬP</button><div id="loginMsg" class="msg hidden"></div></section>
 <div id="app" class="hidden">
 <button class="logout" id="logoutBtn">Đăng xuất</button>
-<section class="card"><h2>📊 Trạng thái vòng quay 600</h2><div class="stats"><div class="stat"><b id="current">0/600</b><span>Lượt đã hoàn tất</span></div><div class="stat"><b id="cycle">1</b><span>Chu kỳ</span></div><div class="stat"><b id="cyclePlays">0/600</b><span>Lượt trong chu kỳ</span></div><div class="stat"><b id="total">0</b><span>Tổng lượt đã quay</span></div></div><div id="statusMsg" class="msg hidden"></div><button id="statusBtn">🔄 CẬP NHẬT TRẠNG THÁI</button></section>
-<section class="card"><h2>🔓 Mở khóa lượt quay</h2><p class="small">Chỉ mở khóa sau khi đã kiểm tra điều kiện khách hàng. Khi bấm mở khóa, lượt quay được cấp <b>trực tiếp cho khách hàng</b> — khách không cần nhập mã hay quét QR.</p><label>Số điện thoại khách hàng</label><input id="phone" inputmode="tel" placeholder="Nhập số điện thoại đã đăng ký"><label>Loại lượt cần mở khóa</label><select id="unlockType"><option value="2">Lượt quay thứ 2 – Mời bạn cùng ăn</option><option value="3">Lượt quay thứ 3 – Đăng ảnh và đánh giá Google</option></select><button id="makeBtn">🔓 MỞ KHÓA LƯỢT NÀY</button><div id="makeMsg" class="msg hidden"></div></section>
-<section class="card"><h2>🎁 Kiểm tra và đổi quà</h2><label>Mã phần thưởng</label><input id="rewardCode" placeholder="Ví dụ: ANNA-XXXXXXXX"><div class="scanBox"><button type="button" id="scanBtn">📷 QUÉT QR ĐỔI QUÀ</button><div id="scanMsg" class="msg hidden"></div></div><button id="redeemBtn">XÁC NHẬN ĐỔI QUÀ</button><div id="redeemMsg" class="msg hidden"></div></section>
-<section class="card"><h2>🔑 Đổi mật khẩu quản trị</h2><label>Mật khẩu mới</label><input id="newPassword" type="password" autocomplete="new-password"><button id="changePasswordBtn">ĐỔI MẬT KHẨU</button><div id="passwordMsg" class="msg hidden"></div></section>
-<section class="card"><h2>🗑️ Xóa dữ liệu</h2><p class="small">Dùng khi xóa dữ liệu test hoặc xóa riêng một khách hàng. Hành động xóa không thể hoàn tác.</p><label>Xóa một khách hàng theo SĐT</label><input id="deletePhone" inputmode="tel" placeholder="Nhập số điện thoại đã đăng ký"><button id="deleteCustomerBtn" class="dangerBtn">🗑️ XÓA KHÁCH HÀNG NÀY</button><button id="deleteAllBtn" class="dangerBtn">⚠️ XÓA TOÀN BỘ DỮ LIỆU KHÁCH HÀNG</button><div id="deleteMsg" class="msg hidden"></div></section><section class="card"><h2>📋 Lịch sử lượt quay</h2><button id="refreshBtn">TẢI LẠI DỮ LIỆU</button><div class="tablewrap"><table><thead><tr><th>ID</th><th>Khách hàng</th><th>SĐT</th><th>Ngày</th><th>Phần thưởng</th><th>Chu kỳ</th><th>Lượt</th><th>Đổi quà</th></tr></thead><tbody id="playsBody"><tr><td colspan="8">Chưa tải dữ liệu</td></tr></tbody></table></div></section>
-</div></div>
-<script>
-const $=id=>document.getElementById(id);let adminToken=sessionStorage.getItem('annaAdminToken')||'';
-function show(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}function hide(id){$(id).classList.add('hidden')}function setApp(on){$('app').classList.toggle('hidden',!on);$('loginCard').classList.toggle('hidden',on)}
-async function api(path,opt={}){opt.headers={...(opt.headers||{}),'Content-Type':'application/json'};if(adminToken)opt.headers['X-Admin-Token']=adminToken;const r=await fetch(path,opt);let b={};try{b=await r.json()}catch(e){}if(!r.ok&&!b.error)b.error='Máy chủ trả về lỗi '+r.status;return b}
-async function checkSetup(){const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:'__probe__'})});if(r.error&&r.error.includes('Chưa khởi tạo'))$('setupBox').classList.remove('hidden')}
-$('setupBtn').onclick=async()=>{hide('setupMsg');const p=$('setupPassword').value;if(p.length<8){show('setupMsg','Mật khẩu phải có ít nhất 8 ký tự.');openNotice('⚠️ Mật khẩu chưa hợp lệ','Mật khẩu quản trị phải có ít nhất <b>8 ký tự</b>.','error');return}const r=await api('/api/admin/setup',{method:'POST',body:JSON.stringify({password:p})});if(!r.ok){show('setupMsg',r.error||'Không thể tạo tài khoản.');openNotice('❌ Không thể tạo tài khoản',esc(r.error||'Không thể tạo tài khoản.'),'error');return}adminToken=r.token;sessionStorage.setItem('annaAdminToken',adminToken);setApp(true);loadAll();openNotice('✅ Tạo tài khoản thành công','Tài khoản quản trị đã được khởi tạo.','success')};
-$('loginBtn').onclick=async()=>{hide('loginMsg');const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('password').value})});if(!r.ok){show('loginMsg',r.error||'Đăng nhập thất bại');openNotice('❌ Đăng nhập thất bại',esc(r.error||'Đăng nhập thất bại'),'error');if((r.error||'').includes('Chưa khởi tạo'))$('setupBox').classList.remove('hidden');return}adminToken=r.token;sessionStorage.setItem('annaAdminToken',adminToken);setApp(true);loadAll()};
-$('logoutBtn').onclick=()=>{adminToken='';sessionStorage.removeItem('annaAdminToken');setApp(false)};
-async function loadStatus(){const r=await api('/api/admin/status');if(!r.ok){show('statusMsg',r.error||'Không tải được trạng thái');openNotice('❌ Không tải được trạng thái',esc(r.error||'Không tải được trạng thái'),'error');return}hide('statusMsg');$('current').textContent=r.currentPosition+'/600';$('cycle').textContent=r.cycleNo;$('cyclePlays').textContent=r.cyclePlays+'/600';$('total').textContent=r.totalPlays}
-$('statusBtn').onclick=loadStatus;
-$('makeBtn').onclick=async()=>{hide('makeMsg');const r=await api('/api/admin/unlock',{method:'POST',body:JSON.stringify({phone:$('phone').value,unlockType:Number($('unlockType').value)})});if(!r.ok){show('makeMsg',r.error||'Không mở khóa được');openNotice('❌ Không thể mở khóa',esc(r.error||'Không mở khóa được'),'error');return}show('makeMsg','✅ Đã mở khóa trực tiếp cho khách hàng.');openNotice('🔓 Mở khóa thành công','Đã mở khóa <b>lượt '+r.unlockType+'</b> trực tiếp cho khách hàng.<br><br>Khách chỉ cần bấm <b>THÊM LƯỢT QUAY '+r.unlockType+'</b> trên trang khách hàng để tiếp tục. Không cần nhập mã và không cần quét QR.','success')};
-let scanStream=null, scanTimer=null, confirmAction=null;
-function openNotice(title,text,kind='info'){const head=$('adminNoticeTitle');head.textContent=title;head.style.background=kind==='success'?'linear-gradient(#168b52,#086c3b)':kind==='error'?'linear-gradient(#b71c1c,#8e0000)':'linear-gradient(#a52d24,#7c1e19)';$('adminNoticeText').innerHTML=text;$('adminNoticeModal').classList.remove('hidden')}
-function closeNotice(){$('adminNoticeModal').classList.add('hidden')}
-$('adminNoticeClose').onclick=closeNotice;
-$('adminNoticeModal').addEventListener('click',e=>{if(e.target.id==='adminNoticeModal')closeNotice()});
-function openConfirm(title,text,action){confirmAction=action;$('adminConfirmTitle').textContent=title;$('adminConfirmText').innerHTML=text;$('adminConfirmModal').classList.remove('hidden')}
-function closeConfirm(){confirmAction=null;$('adminConfirmModal').classList.add('hidden')}
-$('adminConfirmCancel').onclick=closeConfirm;
-$('adminConfirmOk').onclick=async()=>{const action=confirmAction;closeConfirm();if(action)await action()};
-$('adminConfirmModal').addEventListener('click',e=>{if(e.target.id==='adminConfirmModal')closeConfirm()});
+<section class="card"><h2>📊 Trạng thái chu kỳ</h2><div id="statusBox" class="msg">Đang tải...</div></section>
+<section class="card"><h2>🎁 Kiểm tra và đổi quà</h2>
+<label>Mã phần thưởng</label>
+<input id="rewardCode" placeholder="Ví dụ: ANNA-XXXXXXXX">
+<div class="scan-actions">
+  <button id="scanBtn" type="button">📷 QUÉT QR KHÁCH HÀNG</button>
+  <button id="redeemBtn" type="button">XÁC NHẬN ĐỔI QUÀ</button>
+</div>
+<div id="scannerPanel" class="camera-modal hidden" role="dialog" aria-modal="true" aria-labelledby="scannerTitle">
+  <div class="camera-card">
+    <div id="scannerTitle" class="camera-head">📷 CAMERA QUÉT QR ĐỔI QUÀ</div>
+    <div class="camera-body"><b>Đưa mã QR phần thưởng vào khung camera.</b><br>Trình duyệt sẽ hỏi quyền sử dụng camera nếu đây là lần đầu.<div id="reader"></div><div id="scanMsg" class="msg hidden"></div></div>
+    <button id="stopScanBtn" class="camera-close" type="button">ĐÓNG CAMERA</button>
+  </div>
+</div>
+<div id="redeemMsg" class="msg hidden"></div></section>
+<section class="card"><h2>🔓 Mở thêm lượt cho khách</h2><p class="small">Nhân viên chỉ cần nhập <b>1 số điện thoại</b>. Khi bấm mở khóa, hệ thống sẽ cộng đúng số <b>lượt làm nhiệm vụ</b> đang được cấu hình bên dưới.</p><label>Số điện thoại khách</label><input id="unlockPhone" inputmode="tel" placeholder="Nhập số điện thoại khách"><button id="makeBtn">MỞ KHÓA THÊM LƯỢT</button><div id="makeMsg" class="msg hidden"></div></section>
+<section class="card"><h2>⚙️ Cấu hình lượt chơi mỗi ngày</h2><p class="small"><b>Thay đổi tại đây sẽ áp dụng cho trang khách hàng và giới hạn hệ thống ngay.</b> Số lượt miễn phí là số lượt khách được quay không cần làm nhiệm vụ. Số lượt làm nhiệm vụ là số lượt được mở thêm sau khi quán xác nhận nhiệm vụ.</p><label>Tổng số lượt / ngày</label><input id="totalDaily" type="number" min="1" max="100" step="1" placeholder="4"><label>Số lượt miễn phí / ngày</label><input id="freeDaily" type="number" min="0" max="100" step="1" placeholder="2"><label>Số lượt làm nhiệm vụ</label><input id="taskDaily" type="number" min="0" max="100" step="1" placeholder="2"><label>Nhiệm vụ để thêm lượt</label><input id="taskLabel" type="text" maxlength="200" placeholder="Mời bạn cùng ăn tại PHỞ NHÀ ANNA"><div id="dailySummary" class="msg">Đang tính...</div><button id="saveDailyBtn">💾 LƯU CẤU HÌNH LƯỢT / NGÀY</button><div id="dailyMsg" class="msg hidden"></div></section>
+<section class="card"><h2>⚙️ Cấu hình chu kỳ & số lượng giải</h2><p class="small"><b>Nguyên tắc:</b> Số lượt/chu kỳ và số lượng từng giải là 2 cấu hình riêng. Nếu anh chỉ đổi số lượt/chu kỳ thì <b>số lượng giải giữ nguyên</b> và hệ thống tự chia đều các giải trong chu kỳ mới. Nếu anh tăng/giảm số lượng một giải, số lượng mới sẽ được chia đều theo toàn bộ chu kỳ.</p><label>Số lượt / chu kỳ</label><input id="cycleSize" type="number" min="100" max="1000000" step="1" placeholder="600">
+<div class="prize-grid">
+  <div><label>🏆 2 tô phở / 1 tuần</label><input id="quota0" type="number" min="0" step="1" placeholder="1"></div>
+  <div><label>🍜 Phở miễn phí 50K</label><input id="quota1" type="number" min="0" step="1" placeholder="1"></div>
+  <div><label>🏷️ Giải 5K</label><input id="quota2" type="number" min="0" step="1" placeholder="6"></div>
+  <div><label>🥛 Chai sữa tươi</label><input id="quota3" type="number" min="0" step="1" placeholder="4"></div>
+  <div><label>🍵 Trà gừng</label><input id="quota4" type="number" min="0" step="1" placeholder="25"></div>
+</div>
+<div id="quotaSummary" class="msg">Giải còn lại: đang tính...</div>
+<p class="small">📌 Giải <b>Chúc Bạn May Mắn Lần Sau</b> không cần nhập số lượng; hệ thống tự lấy phần lượt còn lại sau khi trừ các giải anh đặt.</p>
+<button id="saveCycleBtn">💾 LƯU CẤU HÌNH</button><div id="cycleMsg" class="msg hidden"></div></section>
 
-async function stopScanner(){if(scanTimer){clearInterval(scanTimer);scanTimer=null}if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}const v=$('adminScanVideo');if(v){v.pause();v.srcObject=null}$('adminQrScanner').classList.add('hidden')}
-async function startScanner(){
-  const box=$('adminQrScanner'),video=$('adminScanVideo'),status=$('adminScanStatus');
-  box.classList.remove('hidden');status.textContent='Đang xin quyền sử dụng camera...';
-  if(!('BarcodeDetector' in window)){status.textContent='Trình duyệt chưa hỗ trợ quét QR bằng camera. Anh hãy đóng hộp thoại và nhập mã thủ công.';return}
-  if(!navigator.mediaDevices?.getUserMedia){status.textContent='Thiết bị/trình duyệt không cho phép camera. Anh hãy nhập mã thủ công.';return}
-  try{
-    const detector=new BarcodeDetector({formats:['qr_code']});
-    scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
-    video.srcObject=scanStream;await video.play();status.textContent='Đưa mã QR vào giữa khung hình...';
-    scanTimer=setInterval(async()=>{if(!scanStream||video.readyState<2)return;try{const codes=await detector.detect(video);if(codes.length&&codes[0].rawValue){const value=codes[0].rawValue.trim();$('rewardCode').value=value;hide('scanMsg');await stopScanner();openNotice('📷 Quét QR thành công','Đã đọc được mã <b>'+esc(value)+'</b>.<br><br>Anh kiểm tra lại mã rồi bấm <b>XÁC NHẬN ĐỔI QUÀ</b>.','success')}}catch(e){}},400);
-  }catch(e){status.textContent='Không mở được camera. Anh hãy cấp quyền camera cho trình duyệt hoặc nhập mã thủ công.'}
+
+<section class="card passwordCard">
+  <h2>🔑 Đổi mật khẩu quản trị</h2>
+  <p class="small">Đổi mật khẩu đăng nhập Admin. Mật khẩu mới phải có từ 8 đến 128 ký tự.</p>
+  <label>Mật khẩu hiện tại</label>
+  <input id="currentPassword" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu hiện tại">
+  <label>Mật khẩu mới</label>
+  <input id="newPassword" type="password" autocomplete="new-password" placeholder="Nhập mật khẩu mới">
+  <label>Nhập lại mật khẩu mới</label>
+  <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Nhập lại mật khẩu mới">
+  <button id="changePasswordBtn" type="button">🔑 ĐỔI MẬT KHẨU</button>
+  <div id="passwordMsg" class="msg hidden"></div>
+</section>
+<section class="card dangerCard">
+  <h2>🗑️ Xóa dữ liệu</h2>
+  <p class="small">Dùng để xóa dữ liệu test hoặc xóa riêng một khách hàng. <b>Thao tác xóa không thể hoàn tác.</b></p>
+  <label>Xóa một khách hàng theo số điện thoại</label>
+  <input id="deletePhone" inputmode="tel" autocomplete="off" placeholder="Nhập số điện thoại đã đăng ký">
+  <button id="deleteOneBtn" class="dangerBtn" type="button">🗑️ XÓA KHÁCH HÀNG NÀY</button>
+  <button id="deleteAllBtn" class="dangerBtn" type="button">⚠️ XÓA TOÀN BỘ DỮ LIỆU KHÁCH HÀNG</button>
+  <div id="deleteMsg" class="msg hidden"></div>
+</section>
+<section class="card"><h2>📋 Lịch sử lượt quay</h2><button id="refreshBtn">TẢI LẠI DỮ LIỆU</button><div class="tablewrap"><table><thead><tr><th>ID</th><th>Khách hàng</th><th>SĐT</th><th>Ngày</th><th>Phần thưởng</th><th>Đổi quà</th></tr></thead><tbody id="playsBody"><tr><td colspan="6">Chưa tải dữ liệu</td></tr></tbody></table></div></section>
+</div></div>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
+<script>
+const $=id=>document.getElementById(id);
+function annaDialog(title,text,opts={}){
+  return new Promise(resolve=>{
+    const box=$('annaDialog'), inputWrap=$('annaDialogInputWrap'), input=$('annaDialogInput');
+    $('annaDialogTitle').textContent=title||'Thông báo';
+    $('annaDialogText').textContent=text||'';
+    inputWrap.classList.toggle('hidden',!opts.input);
+    if(opts.input){ input.value=opts.value||''; input.placeholder=opts.placeholder||''; setTimeout(()=>input.focus(),50); }
+    $('annaDialogCancel').classList.toggle('hidden',opts.cancel===false);
+    $('annaDialogOk').textContent=opts.okText||'ĐỒNG Ý 👍';
+    box.classList.remove('hidden'); box.setAttribute('aria-hidden','false');
+    const finish=(value)=>{ box.classList.add('hidden'); box.setAttribute('aria-hidden','true'); $('annaDialogOk').onclick=null; $('annaDialogCancel').onclick=null; resolve(value); };
+    $('annaDialogOk').onclick=()=>finish(opts.input?input.value:true);
+    $('annaDialogCancel').onclick=()=>finish(opts.input?null:false);
+    if(opts.input) input.onkeydown=e=>{if(e.key==='Enter')finish(input.value); if(e.key==='Escape')finish(null);};
+  });
 }
-$('scanBtn').onclick=startScanner;$('adminScannerClose').onclick=stopScanner;$('adminQrScanner').addEventListener('click',e=>{if(e.target.id==='adminQrScanner')stopScanner()});
-$('redeemBtn').onclick=async()=>{hide('redeemMsg');const r=await api('/api/admin/redeem',{method:'POST',body:JSON.stringify({code:$('rewardCode').value.trim()})});if(!r.ok){show('redeemMsg',r.error||'Không đổi được quà');openNotice('❌ Đổi quà thất bại',esc(r.error||'Không đổi được quà'),'error');return}show('redeemMsg','✅ Đổi quà thành công. Lần đổi: '+r.redemptionCount+'/'+r.maxRedemptions);openNotice('🎁 Đổi quà thành công','Đã xác nhận đổi quà.<br><br><b>Lần đổi: '+r.redemptionCount+'/'+r.maxRedemptions+'</b>','success');loadAll()};
-$('deleteCustomerBtn').onclick=()=>{hide('deleteMsg');const phone=$('deletePhone').value.trim();if(!phone){openNotice('⚠️ Thiếu số điện thoại','Anh hãy nhập số điện thoại khách hàng cần xóa.','error');return}openConfirm('🗑️ Xác nhận xóa khách hàng','Xóa toàn bộ dữ liệu của khách hàng có SĐT <b>'+esc(phone)+'</b>?<br><br>Thao tác này không thể hoàn tác.',async()=>{const r=await api('/api/admin/delete-customer',{method:'POST',body:JSON.stringify({phone})});if(!r.ok){show('deleteMsg',r.error||'Không xóa được khách hàng');openNotice('❌ Không thể xóa',esc(r.error||'Không xóa được khách hàng'),'error');return}show('deleteMsg','✅ '+r.message);$('deletePhone').value='';openNotice('✅ Đã xóa khách hàng',esc(r.message),'success');loadAll()})};
-function openDeleteAll(){hide('deleteMsg');$('deleteAllConfirmInput').value='';$('deleteAllConfirm').disabled=true;$('deleteAllModal').classList.remove('hidden');setTimeout(()=>$('deleteAllConfirmInput').focus(),100)}
-function closeDeleteAll(){$('deleteAllModal').classList.add('hidden');$('deleteAllConfirmInput').value='';$('deleteAllConfirm').disabled=true}
-$('deleteAllBtn').onclick=openDeleteAll;$('deleteAllCancel').onclick=closeDeleteAll;
-$('deleteAllConfirmInput').addEventListener('input',()=>{$('deleteAllConfirm').disabled=$('deleteAllConfirmInput').value!=='XOA TAT CA'});
-$('deleteAllConfirm').onclick=async()=>{if($('deleteAllConfirmInput').value!=='XOA TAT CA')return;closeDeleteAll();const r=await api('/api/admin/delete-all-customers',{method:'POST'});if(!r.ok){show('deleteMsg',r.error||'Không xóa được dữ liệu');openNotice('❌ Không thể xóa toàn bộ',esc(r.error||'Không xóa được dữ liệu'),'error');return}show('deleteMsg','✅ '+r.message);openNotice('✅ Đã xóa toàn bộ dữ liệu','Toàn bộ dữ liệu khách hàng, lượt quay, mã mở khóa và lịch sử test đã được xóa.<br><br>Bộ đếm đã trở về <b>0/600</b>.','success');loadAll()};
-$('changePasswordBtn').onclick=async()=>{hide('passwordMsg');const p=$('newPassword').value;if(p.length<8){show('passwordMsg','Mật khẩu mới phải có ít nhất 8 ký tự.');openNotice('⚠️ Mật khẩu chưa hợp lệ','Mật khẩu mới phải có ít nhất <b>8 ký tự</b>.','error');return}const r=await api('/api/admin/change-password',{method:'POST',body:JSON.stringify({newPassword:p})});if(!r.ok){show('passwordMsg',r.error||'Không đổi được mật khẩu');openNotice('❌ Không đổi được mật khẩu',esc(r.error||'Không đổi được mật khẩu'),'error');return}adminToken=r.token;sessionStorage.setItem('annaAdminToken',adminToken);$('newPassword').value='';show('passwordMsg','✅ Đã đổi mật khẩu. Phiên quản trị hiện tại vẫn được giữ.');openNotice('🔑 Đổi mật khẩu thành công','Mật khẩu quản trị đã được cập nhật. Phiên quản trị hiện tại vẫn được giữ.','success')};
-async function loadPlays(){const r=await api('/api/admin/plays');if(!r.ok){$('playsBody').innerHTML='<tr><td colspan="8">'+(r.error||'Không tải được dữ liệu')+'</td></tr>';return}$('playsBody').innerHTML=(r.rows||[]).map(x=>`<tr><td>${x.id}</td><td>${esc(x.name)}</td><td>${esc(x.phone)}</td><td>${esc(x.play_date)}</td><td>${esc(x.prize_name)}</td><td>${x.cycle600_no||''}</td><td>${x.cycle600_position||''}</td><td>${x.redeemed?'Đã đổi':'Chưa đổi'}${x.redemption_count?' ('+x.redemption_count+')':''}</td></tr>`).join('')||'<tr><td colspan="8">Chưa có dữ liệu</td></tr>'}
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}function loadAll(){loadStatus();loadPlays()}$('refreshBtn').onclick=loadAll;
-if(adminToken){setApp(true);loadAll()}else checkSetup();
-</script></body></html>
+const annaConfirm=(title,text)=>annaDialog(title,text,{okText:'XÁC NHẬN 👍'});
+const annaPrompt=(title,text,placeholder)=>annaDialog(title,text,{input:true,placeholder,okText:'XÁC NHẬN 👍'});
+
+let adminToken=localStorage.getItem('annaAdminToken')||sessionStorage.getItem('annaAdminToken')||'';
+let adminReady=false;
+function show(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}
+function hide(id){$(id).classList.add('hidden')}
+function setApp(on){$('app').classList.toggle('hidden',!on);$('loginCard').classList.toggle('hidden',on)}
+async function api(path,opt={}){
+  const options={...opt,credentials:'same-origin',cache:'no-store'};
+  options.headers={...(options.headers||{}),'Content-Type':'application/json','Cache-Control':'no-cache'};
+  // Secure HttpOnly cookie is the primary session. Token is only a compatibility fallback.
+  if(adminToken)options.headers['X-Admin-Token']=adminToken;
+  const method=String(options.method||'GET').toUpperCase();
+  const attempts=method==='GET'?3:1;
+  let lastError='';
+  for(let attempt=0;attempt<attempts;attempt++){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),12000);
+    try{
+      const r=await fetch(path,{...options,signal:controller.signal});
+      clearTimeout(timer);
+      if((r.status===502||r.status===503||r.status===504)&&attempt<attempts-1){
+        await new Promise(x=>setTimeout(x,250*(attempt+1)));
+        continue;
+      }
+      let data={}; try{data=await r.json()}catch(e){data={ok:false,error:'Máy chủ trả về dữ liệu không hợp lệ.'}}
+      return { ...data, _status:r.status };
+    }catch(e){
+      clearTimeout(timer); lastError=e;
+      if(attempt<attempts-1){
+        await new Promise(x=>setTimeout(x,250*(attempt+1)));
+        continue;
+      }
+    }
+  }
+  return {ok:false,_status:0,error:'Không kết nối được máy chủ. Vui lòng kiểm tra mạng và thử lại.'};
+}
+let booting=false;
+async function bootAdmin(){
+  if(booting)return;
+  booting=true;
+  const hasSavedToken=!!adminToken;
+  // Never hide the admin shell just because a refresh request is temporarily slow.
+  if(hasSavedToken)setApp(true);
+  try{
+    const r=await api('/api/admin/session',{method:'GET'});
+    if(r.ok){
+      adminReady=true; setApp(true);
+      await Promise.all([loadPlays(),loadCycleConfig(),loadDailyConfig(),loadStatus()]);
+      booting=false; return;
+    }
+    // 401 means the server explicitly says the session is invalid.
+    if(r._status!==401){
+      if(hasSavedToken)setApp(true);
+      booting=false; return;
+    }
+  }catch(e){
+    if(hasSavedToken){setApp(true);booting=false;return;}
+  }
+  // Compatibility fallback for older deployments/tokens.
+  if(hasSavedToken){
+    try{
+      const r=await api('/api/admin/status',{method:'GET'});
+      if(r.ok){
+        setApp(true);
+        await Promise.all([loadPlays(),loadCycleConfig(),loadDailyConfig(),loadStatus()]);
+        booting=false; return;
+      }
+      if(r._status!==401){setApp(true);booting=false;return;}
+    }catch(e){setApp(true);booting=false;return;}
+  }
+  adminToken='';
+  localStorage.removeItem('annaAdminToken');
+  sessionStorage.removeItem('annaAdminToken');
+  setApp(false);
+  booting=false;
+}
+
+$('loginBtn').onclick=async()=>{
+  hide('loginMsg');
+  const password=$('password').value;
+  try{
+    const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password})});
+    if(!r.ok)throw Error(r.error||'Đăng nhập thất bại');
+    adminToken=r.token||'';
+    if(adminToken){
+      localStorage.setItem('annaAdminToken',adminToken);
+      sessionStorage.setItem('annaAdminToken',adminToken);
+    }
+    setApp(true); $('password').value='';
+    await Promise.all([loadPlays(),loadCycleConfig(),loadDailyConfig(),loadStatus()]);
+  }catch(e){show('loginMsg',e.message)}
+};
+$('logoutBtn').onclick=async()=>{
+  try{await api('/api/admin/logout',{method:'POST'})}catch(e){}
+  adminToken='';
+  localStorage.removeItem('annaAdminToken');
+  sessionStorage.removeItem('annaAdminToken');
+  setApp(false);
+};
+$('changePasswordBtn').onclick=async()=>{
+  hide('passwordMsg');
+  const currentPassword=$('currentPassword').value;
+  const newPassword=$('newPassword').value;
+  const confirmPassword=$('confirmPassword').value;
+  if(!currentPassword){show('passwordMsg','Vui lòng nhập mật khẩu hiện tại.');return}
+  if(newPassword.length<8){show('passwordMsg','Mật khẩu mới phải có ít nhất 8 ký tự.');return}
+  if(newPassword!==confirmPassword){show('passwordMsg','Mật khẩu xác nhận không khớp.');return}
+  try{
+    const r=await api('/api/admin/change-password',{method:'POST',body:JSON.stringify({currentPassword,newPassword})});
+    if(!r.ok)throw Error(r.error||'Không đổi được mật khẩu');
+    adminToken=r.token||adminToken;
+    if(adminToken){
+      localStorage.setItem('annaAdminToken',adminToken);
+      sessionStorage.setItem('annaAdminToken',adminToken);
+    }
+    $('currentPassword').value='';$('newPassword').value='';$('confirmPassword').value='';
+    show('passwordMsg','✅ '+(r.message||'Đã đổi mật khẩu quản trị thành công.'));
+  }catch(e){show('passwordMsg',e.message)}
+};
+$('makeBtn').onclick=async()=>{hide('makeMsg');try{const r=await api('/api/admin/unlock',{method:'POST',body:JSON.stringify({phone:$('unlockPhone').value})});if(!r.ok)throw Error(r.error||'Không mở khóa được');show('makeMsg','✅ '+r.message+' '+r.customer.name+' ('+r.customer.phone+').');$('unlockPhone').value='';loadStatus();}catch(e){show('makeMsg',e.message)}};
+
+function renderDailySummary(){const total=Number($('totalDaily').value||0),free=Number($('freeDaily').value||0),task=Number($('taskDaily').value||0);const ok=total>=1&&free>=0&&free<=total&&task>=0&&task<=total-free;$('dailySummary').textContent=ok?'Tổng '+total.toLocaleString('vi-VN')+' lượt/ngày · Miễn phí '+free.toLocaleString('vi-VN')+' · Nhiệm vụ mở thêm '+task.toLocaleString('vi-VN')+' · Còn '+Math.max(0,total-free-task).toLocaleString('vi-VN')+' lượt không cần nhiệm vụ.':'⚠️ Cấu hình chưa hợp lệ: lượt miễn phí + lượt nhiệm vụ không được vượt tổng lượt/ngày.';return ok;}
+async function loadDailyConfig(){try{const r=await api('/api/admin/daily-config');if(!r.ok)throw Error(r.error||'Không tải được cấu hình lượt/ngày');$('totalDaily').value=r.totalDaily;$('freeDaily').value=r.freeDaily;$('taskDaily').value=r.taskDaily;$('taskLabel').value=r.taskLabel||'';renderDailySummary();}catch(e){show('dailyMsg',e.message)}}
+for(const id of ['totalDaily','freeDaily','taskDaily'])$(id).addEventListener('input',renderDailySummary);
+$('saveDailyBtn').onclick=async()=>{hide('dailyMsg');if(!renderDailySummary())return;try{const r=await api('/api/admin/daily-config',{method:'POST',body:JSON.stringify({totalDaily:Number($('totalDaily').value),freeDaily:Number($('freeDaily').value),taskDaily:Number($('taskDaily').value),taskEnabled:true,taskLabel:$('taskLabel').value})});if(!r.ok)throw Error(r.error||'Không lưu được cấu hình');show('dailyMsg','✅ '+r.message);loadStatus();}catch(e){show('dailyMsg',e.message)}};
+
+async function loadStatus(){try{const r=await api('/api/admin/status');if(r.ok){let t='Chu kỳ '+r.cycleNo+': '+Number(r.currentPosition).toLocaleString('vi-VN')+'/'+Number(r.cycleSize).toLocaleString('vi-VN')+' lượt\n'+'Tổng lượt đã quay: '+Number(r.totalPlays).toLocaleString('vi-VN');if(r.daily)t+='\nLượt/ngày: '+r.daily.totalDaily+' (miễn phí '+r.daily.freeDaily+', nhiệm vụ '+r.daily.taskDaily+')';if(r.pendingCycleSize)t+='\nChu kỳ kế tiếp: '+Number(r.pendingCycleSize).toLocaleString('vi-VN')+' lượt';$('statusBox').textContent=t;}else $('statusBox').textContent=r.error||'Không tải được trạng thái chu kỳ.';}catch(e){$('statusBox').textContent='Không tải được trạng thái chu kỳ: '+e.message}}
+function renderQuotaSummary(size,q){const used=[0,1,2,3,4].reduce((s,i)=>s+Number(q?.[i]||0),0);$('quotaSummary').textContent='Tổng giải có quà: '+used.toLocaleString('vi-VN')+' · Chúc Bạn May Mắn Lần Sau: '+Math.max(0,Number(size||0)-used).toLocaleString('vi-VN');}
+async function loadCycleConfig(){try{const r=await api('/api/admin/cycle-config');if(r.ok){$('cycleSize').value=r.cycleSize;for(const i of [0,1,2,3,4])$('quota'+i).value=Number(r.quotas?.[i]??0);renderQuotaSummary(r.cycleSize,r.quotas);let text='Hiện tại: '+Number(r.currentPosition).toLocaleString('vi-VN')+'/'+Number(r.cycleSize).toLocaleString('vi-VN')+' lượt';if(r.pendingCycleSize)text+=' · Chu kỳ kế tiếp: '+Number(r.pendingCycleSize).toLocaleString('vi-VN')+' lượt với cấu hình giải mới';show('cycleMsg',text)}}catch(e){show('cycleMsg','Không tải được cấu hình: '+e.message)}}
+for(const id of ['cycleSize','quota0','quota1','quota2','quota3','quota4'])$(id).addEventListener('input',()=>renderQuotaSummary(Number($('cycleSize').value),{0:Number($('quota0').value||0),1:Number($('quota1').value||0),2:Number($('quota2').value||0),3:Number($('quota3').value||0),4:Number($('quota4').value||0)}));
+$('saveCycleBtn').onclick=async()=>{hide('cycleMsg');try{const payload={cycleSize:Number($('cycleSize').value),quota0:Number($('quota0').value),quota1:Number($('quota1').value),quota2:Number($('quota2').value),quota3:Number($('quota3').value),quota4:Number($('quota4').value)};const r=await api('/api/admin/cycle-config',{method:'POST',body:JSON.stringify(payload)});if(!r.ok)throw Error(r.error||'Không lưu được cấu hình');show('cycleMsg','✅ '+r.message);loadCycleConfig();loadStatus();}catch(e){show('cycleMsg',e.message)}};
+$('redeemBtn').onclick=async()=>{hide('redeemMsg');try{const r=await api('/api/admin/redeem',{method:'POST',body:JSON.stringify({code:$('rewardCode').value.trim()})});if(!r.ok)throw Error(r.error||'Không đổi được quà');show('redeemMsg','✅ Đổi quà thành công!');loadPlays()}catch(e){show('redeemMsg',e.message)}};
+
+let qrScanner=null;
+let scannerRunning=false;
+let scanBusy=false;
+
+function scanMessage(text){
+  if(text){$('scanMsg').textContent=text;$('scanMsg').classList.remove('hidden');}
+  else $('scanMsg').classList.add('hidden');
+}
+async function stopScanner(){
+  if(qrScanner){
+    try{if(scannerRunning)await qrScanner.stop();}catch(e){}
+    try{await qrScanner.clear();}catch(e){}
+  }
+  scannerRunning=false;
+  qrScanner=null;
+  $('scannerPanel').classList.add('hidden');
+  scanBusy=false;
+}
+$('scanBtn').onclick=async()=>{
+  hide('redeemMsg'); scanMessage('');
+  $('scannerPanel').classList.remove('hidden');
+  if(typeof Html5Qrcode==='undefined'){
+    scanMessage('Không tải được trình quét QR. Vui lòng kiểm tra kết nối mạng.');
+    return;
+  }
+  if(scannerRunning)return;
+  try{
+    qrScanner=new Html5Qrcode('reader');
+    scannerRunning=true; scanBusy=false;
+    await qrScanner.start(
+      {facingMode:{exact:'environment'}},
+      {fps:10,qrbox:{width:250,height:250}},
+      async(decodedText)=>{
+        if(scanBusy)return;
+        const value=String(decodedText||'').trim();
+        if(!value)return;
+        scanBusy=true;
+        const match=value.match(/ANNA-[A-Z0-9]+/i);
+        $('rewardCode').value=match?match[0].toUpperCase():value;
+        scanMessage('✅ Đã quét mã thành công. Anh bấm “XÁC NHẬN ĐỔI QUÀ”.');
+        await stopScanner();
+      },
+      ()=>{}
+    );
+  }catch(e){
+    // Some browsers reject the exact constraint; retry with the simpler facingMode.
+    try{
+      if(qrScanner){try{await qrScanner.clear()}catch(x){}}
+      qrScanner=new Html5Qrcode('reader');
+      scannerRunning=true; scanBusy=false;
+      await qrScanner.start(
+        {facingMode:'environment'},
+        {fps:10,qrbox:{width:250,height:250}},
+        async(decodedText)=>{
+          if(scanBusy)return;
+          const value=String(decodedText||'').trim(); if(!value)return;
+          scanBusy=true;
+          const match=value.match(/ANNA-[A-Z0-9]+/i);
+          $('rewardCode').value=match?match[0].toUpperCase():value;
+          scanMessage('✅ Đã quét mã thành công. Anh bấm “XÁC NHẬN ĐỔI QUÀ”.');
+          await stopScanner();
+        },
+        ()=>{}
+      );
+    }catch(e2){
+      scanMessage('Không mở được camera. Anh hãy bấm Cho phép camera cho trình duyệt, rồi thử lại.');
+      scannerRunning=false; qrScanner=null;
+    }
+  }
+};
+$('stopScanBtn').onclick=stopScanner;
+$('scannerPanel').addEventListener('click',e=>{if(e.target.id==='scannerPanel')stopScanner();});
+window.addEventListener('keydown',e=>{if(e.key==='Escape' && !$('scannerPanel').classList.contains('hidden'))stopScanner();});
+
+async function loadPlays(){const r=await api('/api/admin/plays');if(!r.ok){$('playsBody').innerHTML='<tr><td colspan="6">'+(r.error||'Không tải được dữ liệu')+'</td></tr>';return} $('playsBody').innerHTML=(r.rows||[]).map(x=>`<tr><td>${x.id}</td><td>${esc(x.name)}</td><td>${esc(x.phone)}</td><td>${esc(x.play_date)}</td><td>${esc(x.prize_name)}</td><td>${x.redeemed?'Đã đổi':'Chưa đổi'}</td></tr>`).join('')||'<tr><td colspan="6">Chưa có dữ liệu</td></tr>'}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('refreshBtn').onclick=loadPlays;
+$('deleteOneBtn').onclick=async()=>{
+  hide('deleteMsg');
+  const phone=$('deletePhone').value.trim();
+  if(!phone){show('deleteMsg','Vui lòng nhập số điện thoại cần xóa.');return}
+  if(!(await annaConfirm('🗑️ Xóa khách hàng', 'Anh chắc chắn muốn xóa khách hàng theo số điện thoại này cùng toàn bộ lượt quay và mã liên quan?')))return;
+  try{
+    const r=await api('/api/admin/delete-customer',{method:'POST',body:JSON.stringify({phone})});
+    if(!r.ok)throw Error(r.error||'Không xóa được khách hàng');
+    show('deleteMsg','✅ '+r.message);
+    $('deletePhone').value='';
+    loadPlays();
+  }catch(e){show('deleteMsg',e.message)}
+};
+
+$('deleteAllBtn').onclick=async()=>{
+  hide('deleteMsg');
+  const first=await annaConfirm('⚠️ Xóa toàn bộ dữ liệu', 'CẢNH BÁO: Thao tác này sẽ xóa TẤT CẢ khách hàng, lượt quay, mã mở khóa và lịch sử liên quan. Tiếp tục?');
+  if(!first)return;
+  const second=await annaPrompt('🔐 Xác nhận thao tác', 'Để xác nhận xóa toàn bộ, hãy nhập chính xác: XOA TAT CA','XOA TAT CA');
+  if(second!=='XOA TAT CA'){show('deleteMsg','Đã hủy. Nội dung xác nhận không đúng.');return}
+  try{
+    const r=await api('/api/admin/delete-all-customers',{method:'POST',body:'{}'});
+    if(!r.ok)throw Error(r.error||'Không xóa được dữ liệu');
+    show('deleteMsg','✅ '+r.message);
+    loadPlays();
+  }catch(e){show('deleteMsg',e.message)}
+};
+
+window.addEventListener('error',ev=>{
+  const msg=String(ev?.error?.message||ev?.message||'Lỗi JavaScript không xác định');
+  const box=document.getElementById('loginMsg');
+  if(box){box.textContent='Lỗi giao diện Admin: '+msg;box.classList.remove('hidden');}
+});
+bootAdmin();
+// F5/page restore hardening: re-check the server session when the page becomes visible
+// again, but never erase a saved token because of a transient network/D1 failure.
+window.addEventListener('pageshow',()=>{if(!booting)bootAdmin();});
+</script>
+<div id="annaDialog" class="anna-dialog hidden" aria-hidden="true">
+  <div class="anna-dialog-card" role="dialog" aria-modal="true" aria-labelledby="annaDialogTitle">
+    <div class="anna-dialog-head">🍜 PHỞ NHÀ ANNA</div>
+    <div class="anna-dialog-title" id="annaDialogTitle">Thông báo</div>
+    <div class="anna-dialog-text" id="annaDialogText"></div>
+    <div class="anna-dialog-input-wrap hidden" id="annaDialogInputWrap">
+      <input id="annaDialogInput" autocomplete="off" />
+    </div>
+    <div class="anna-dialog-actions">
+      <button type="button" id="annaDialogCancel" class="anna-secondary">HỦY</button>
+      <button type="button" id="annaDialogOk">ĐỒNG Ý 👍</button>
+    </div>
+  </div>
+</div>
+
+</body></html>
