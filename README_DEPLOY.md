@@ -32,3 +32,10 @@ The previous V10.1 Admin page referenced changePasswordBtn/currentPassword/newPa
 - Admin JavaScript syntax checked with Node.
 - Worker JavaScript syntax checked with Node.
 - ZIP integrity checked.
+
+
+## V10.4 critical server fix
+The Worker now self-heals the core `customers` and `plays` tables before API handling and
+creates the indexes required by the Admin/customer flows. Existing rows are preserved.
+This prevents the generic HTTP 500 "Lỗi máy chủ" when the deployed D1 is older or only
+partially migrated. `ensurePlayColumns()` also runs through the same base-schema repair.
