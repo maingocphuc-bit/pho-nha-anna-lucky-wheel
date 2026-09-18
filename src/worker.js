@@ -99,25 +99,28 @@ async function adminOk(req, env) {
 }
 
 async function ensureCoreTables(env) {
-  // D1 may be from an older deployment. Create only missing tables; never delete data.
+  // IMPORTANT: older D1 deployments may already have these tables with an
+  // earlier schema. CREATE TABLE IF NOT EXISTS does NOT repair an existing
+  // table, and creating an index before adding a missing column can make every
+  // API call fail with a generic 500. Repair columns first, indexes second.
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS customers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    phone TEXT NOT NULL UNIQUE,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    name TEXT,
+    phone TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
   )`).run();
 
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS plays (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    customer_id INTEGER NOT NULL,
-    play_date TEXT NOT NULL,
-    prize_index INTEGER NOT NULL,
-    prize_name TEXT NOT NULL,
-    reward_code TEXT UNIQUE,
+    customer_id INTEGER,
+    play_date TEXT,
+    prize_index INTEGER,
+    prize_name TEXT,
+    reward_code TEXT,
     redeemed INTEGER NOT NULL DEFAULT 0,
     redeemed_at TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT DEFAULT (datetime('now')),
     cycle_no INTEGER NOT NULL DEFAULT 1,
     cycle_position INTEGER,
     cycle600_no INTEGER NOT NULL DEFAULT 1,
@@ -126,19 +129,28 @@ async function ensureCoreTables(env) {
     expires_at TEXT
   )`).run();
 
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)').run();
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_customer_date ON plays(customer_id,play_date)').run();
-  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_reward_code ON plays(reward_code)').run();
-}
+  const customerInfo = await env.DB.prepare('PRAGMA table_info(customers)').all();
+  const customerCols = new Set((customerInfo.results || []).map(x => String(x.name)));
+  const customerAdds = [
+    ['name', 'ALTER TABLE customers ADD COLUMN name TEXT'],
+    ['phone', 'ALTER TABLE customers ADD COLUMN phone TEXT'],
+    ['created_at', "ALTER TABLE customers ADD COLUMN created_at TEXT"],
+    ['updated_at', "ALTER TABLE customers ADD COLUMN updated_at TEXT"]
+  ];
+  for (const [name, sql] of customerAdds) if (!customerCols.has(name)) await env.DB.prepare(sql).run();
+  await env.DB.prepare("UPDATE customers SET created_at=COALESCE(created_at,datetime('now')), updated_at=COALESCE(updated_at,datetime('now')) WHERE created_at IS NULL OR updated_at IS NULL").run();
 
-async function ensurePlayColumns(env) {
-  await ensureCoreTables(env);
-  const info = await env.DB.prepare('PRAGMA table_info(plays)').all();
-  const cols = new Set((info.results || []).map(x => String(x.name)));
-  // Repair every column used by the current application. This is intentionally
-  // additive: old customer/play history is preserved and no destructive
-  // migration is required when an older D1 is deployed.
-  const adds = [
+  const playInfo = await env.DB.prepare('PRAGMA table_info(plays)').all();
+  const playCols = new Set((playInfo.results || []).map(x => String(x.name)));
+  const playAdds = [
+    ['customer_id', 'ALTER TABLE plays ADD COLUMN customer_id INTEGER'],
+    ['play_date', 'ALTER TABLE plays ADD COLUMN play_date TEXT'],
+    ['prize_index', 'ALTER TABLE plays ADD COLUMN prize_index INTEGER'],
+    ['prize_name', 'ALTER TABLE plays ADD COLUMN prize_name TEXT'],
+    ['reward_code', 'ALTER TABLE plays ADD COLUMN reward_code TEXT'],
+    ['redeemed', 'ALTER TABLE plays ADD COLUMN redeemed INTEGER NOT NULL DEFAULT 0'],
+    ['redeemed_at', 'ALTER TABLE plays ADD COLUMN redeemed_at TEXT'],
+    ['created_at', "ALTER TABLE plays ADD COLUMN created_at TEXT"],
     ['cycle_no', 'ALTER TABLE plays ADD COLUMN cycle_no INTEGER NOT NULL DEFAULT 1'],
     ['cycle_position', 'ALTER TABLE plays ADD COLUMN cycle_position INTEGER'],
     ['cycle600_no', 'ALTER TABLE plays ADD COLUMN cycle600_no INTEGER NOT NULL DEFAULT 1'],
@@ -146,7 +158,20 @@ async function ensurePlayColumns(env) {
     ['redemption_count', 'ALTER TABLE plays ADD COLUMN redemption_count INTEGER NOT NULL DEFAULT 0'],
     ['expires_at', 'ALTER TABLE plays ADD COLUMN expires_at TEXT']
   ];
-  for (const [name, sql] of adds) if (!cols.has(name)) await env.DB.prepare(sql).run();
+  for (const [name, sql] of playAdds) if (!playCols.has(name)) await env.DB.prepare(sql).run();
+  await env.DB.prepare("UPDATE plays SET created_at=COALESCE(created_at,datetime('now')), redeemed=COALESCE(redeemed,0), cycle_no=COALESCE(cycle_no,1), cycle600_no=COALESCE(cycle600_no,1), redemption_count=COALESCE(redemption_count,0) WHERE created_at IS NULL OR redeemed IS NULL OR cycle_no IS NULL OR cycle600_no IS NULL OR redemption_count IS NULL").run();
+
+  // Non-unique indexes are deliberately used for legacy compatibility. The
+  // application now checks/updates a customer explicitly instead of relying
+  // on ON CONFLICT(phone), so an old database without a UNIQUE phone index is
+  // still fully usable and existing duplicate test rows are not destroyed.
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_customer_date ON plays(customer_id,play_date)').run();
+  await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_plays_reward_code ON plays(reward_code)').run();
+}
+
+async function ensurePlayColumns(env) {
+  await ensureCoreTables(env);
 }
 
 async function ensureDailyConfig(env) {
@@ -370,6 +395,26 @@ async function releaseSpinLock(env, customerId, date) {
   try { await env.DB.prepare('DELETE FROM spin_locks WHERE customer_id=? AND play_date=?').bind(customerId,date).run(); } catch(e) {}
 }
 
+async function ensureCycleReservationLock(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS cycle_reservation_lock (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    locked_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`).run();
+}
+async function acquireCycleReservationLock(env) {
+  await ensureCycleReservationLock(env);
+  await env.DB.prepare("DELETE FROM cycle_reservation_lock WHERE id=1 AND datetime(locked_at) < datetime('now','-30 seconds')").run();
+  try {
+    const r = await env.DB.prepare("INSERT INTO cycle_reservation_lock(id,locked_at) VALUES(1,datetime('now'))").run();
+    return Number(r?.meta?.changes || 0) === 1;
+  } catch(e) {
+    return false;
+  }
+}
+async function releaseCycleReservationLock(env) {
+  try { await env.DB.prepare('DELETE FROM cycle_reservation_lock WHERE id=1').run(); } catch(e) {}
+}
+
 
 async function ensureUnlockTables(env) {
   // Repair/extend old D1 schemas as well as creating new tables. Existing rows
@@ -450,29 +495,25 @@ async function syncCycleState(env) {
 
 async function reserveCyclePosition(env) {
   await syncCycleState(env);
-  // Atomic counter update. If the current cycle is complete, the pending size becomes active for the new cycle.
-  const result = await env.DB.prepare(`
-    UPDATE cycle_state_dynamic
-    SET cycle_no = CASE
-      WHEN position >= (SELECT cycle_size FROM cycle_config WHERE id=1)
-        THEN cycle_no + 1
-      ELSE cycle_no
-    END,
-    position = CASE
-      WHEN position >= (SELECT cycle_size FROM cycle_config WHERE id=1)
-        THEN 1
-      ELSE position + 1
-    END,
-    updated_at = datetime('now')
-    WHERE id=1
-    RETURNING cycle_no, position
-  `).run();
-  const row = result?.results?.[0];
-  if (!row) return null;
-  const cycleNo = Number(row.cycle_no), position = Number(row.position);
-  // Apply pending size only after a new cycle has started.
+  // D1's run() result is not a reliable place to obtain rows from a write
+  // statement. The previous version used UPDATE ... RETURNING and then read
+  // result.results[0], which can be empty on D1 and made every spin fail with
+  // a generic server error. Serialize spins with the global lock and use a
+  // normal UPDATE followed by SELECT instead.
+  const current = await env.DB.prepare('SELECT cycle_no,position FROM cycle_state_dynamic WHERE id=1').first();
+  if (!current) return null;
   const config = await getCycleConfig(env);
-  if (position === 1 && cycleNo > 1 && config?.pending_cycle_size) {
+  const size = Math.max(1, Number(config?.cycle_size || BASE_CYCLE_SIZE));
+  const currentCycle = Math.max(1, Number(current.cycle_no || 1));
+  const currentPosition = Math.max(0, Number(current.position || 0));
+  const nextCycle = currentPosition >= size ? currentCycle + 1 : currentCycle;
+  const nextPosition = currentPosition >= size ? 1 : currentPosition + 1;
+
+  const updated = await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=?,position=?,updated_at=datetime('now') WHERE id=1 AND cycle_no=? AND position=?")
+    .bind(nextCycle,nextPosition,currentCycle,currentPosition).run();
+  if (Number(updated?.meta?.changes || 0) !== 1) return null;
+
+  if (nextPosition === 1 && nextCycle > 1 && config?.pending_cycle_size) {
     await env.DB.prepare(`UPDATE cycle_config SET
       cycle_size=COALESCE(pending_cycle_size,cycle_size),
       pending_cycle_size=NULL,
@@ -485,7 +526,7 @@ async function reserveCyclePosition(env) {
       updated_at=datetime('now') WHERE id=1`).run();
   }
   const fresh = await getCycleConfig(env);
-  return {cycle_no:cycleNo, position, cycle_size:Number(fresh?.cycle_size||BASE_CYCLE_SIZE), quotas:quotaObject(fresh)};
+  return {cycle_no:nextCycle, position:nextPosition, cycle_size:Number(fresh?.cycle_size||BASE_CYCLE_SIZE), quotas:quotaObject(fresh)};
 }
 
 async function specialHistory(env, customerId) {
@@ -525,8 +566,13 @@ async function api(req, env, url) {
     await ensureCoreTables(env); await ensurePlayColumns(env); await ensureUnlockTables(env);
     const b = await req.json(); const name = String(b.name || '').trim(); const phone = normPhone(b.phone);
     if (name.length < 2 || phone.length < 9 || phone.length > 12) return json({ ok:false, error:'Tên hoặc số điện thoại không hợp lệ.' },400);
-    await env.DB.prepare("INSERT INTO customers(name,phone) VALUES(?,?) ON CONFLICT(phone) DO UPDATE SET name=excluded.name").bind(name,phone).run();
-    const c = await env.DB.prepare('SELECT id,name,phone FROM customers WHERE phone=?').bind(phone).first();
+    const existingCustomer = await env.DB.prepare('SELECT id,name,phone FROM customers WHERE phone=? ORDER BY id ASC LIMIT 1').bind(phone).first();
+    if (existingCustomer) {
+      await env.DB.prepare("UPDATE customers SET name=?,updated_at=datetime('now') WHERE id=?").bind(name,existingCustomer.id).run();
+    } else {
+      await env.DB.prepare("INSERT INTO customers(name,phone,created_at,updated_at) VALUES(?,?,datetime('now'),datetime('now'))").bind(name,phone).run();
+    }
+    const c = await env.DB.prepare('SELECT id,name,phone FROM customers WHERE phone=? ORDER BY id ASC LIMIT 1').bind(phone).first();
     const d = today(); const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE customer_id=? AND play_date=?').bind(c.id,d).first();
     await ensureUnlockTables(env);
     const unlocks = await customerUnlocks(env,c.id,d); const used = Number(row?.n || 0);
@@ -559,6 +605,11 @@ async function api(req, env, url) {
     // consuming more than one daily turn for the same customer.
     const lockAcquired = await acquireSpinLock(env,c.id,d);
     if (!lockAcquired) return json({ok:false,code:'SPIN_IN_PROGRESS',error:'Lượt quay trước đang được xử lý. Vui lòng chờ vài giây.'},409);
+    const cycleLockAcquired = await acquireCycleReservationLock(env);
+    if (!cycleLockAcquired) {
+      await releaseSpinLock(env,c.id,d);
+      return json({ok:false,code:'SPIN_IN_PROGRESS',error:'Hệ thống đang xử lý một lượt quay khác. Vui lòng thử lại sau vài giây.'},409);
+    }
     let spinLockHeld = true;
     try {
       const verify = await env.DB.prepare('SELECT COUNT(*) AS n FROM plays WHERE customer_id=? AND play_date=?').bind(c.id,d).first();
@@ -639,9 +690,10 @@ async function api(req, env, url) {
     const response = json({ok:true,prizeIndex:i,prize:p.name,special:p.special,rewardCode,qr,
       specialTerms:i===0?'Có hiệu lực 7 ngày; tối đa 1 tô/ngày; giá trị tối đa 50.000đ/tô; phần vượt quá khách tự thanh toán.':i===1?'Có hiệu lực 2 ngày; áp dụng cho 1 tô phở tối đa 50.000đ.':i===2?'Có hiệu lực 1 ngày.':i===3?'Có hiệu lực 1 ngày.':i===4?'Có hiệu lực 1 ngày.':'',
       remaining:Math.max(0,totalDaily-(usedNow+1)),totalDaily,freeDaily,taskDaily,taskEnabled,taskLabel:String(dc?.task_label||''),cycleNo,cyclePosition});
-    await releaseSpinLock(env,c.id,d); spinLockHeld=false;
+    await releaseCycleReservationLock(env); await releaseSpinLock(env,c.id,d); spinLockHeld=false;
     return response;
     } finally {
+      await releaseCycleReservationLock(env);
       if (spinLockHeld) await releaseSpinLock(env,c.id,d);
     }
   }
