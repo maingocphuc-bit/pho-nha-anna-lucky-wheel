@@ -25,7 +25,7 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
 .pointer{position:absolute;z-index:10;top:-9px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:34px solid transparent;border-right:34px solid transparent;border-top:75px solid #c8171c;filter:drop-shadow(0 5px 4px #0009)}
 .pointer:before{content:"";position:absolute;left:-27px;top:-69px;border-left:27px solid transparent;border-right:27px solid transparent;border-top:53px solid #ff4b3f}
 .pointer:after{content:"";position:absolute;left:-18px;top:-58px;width:36px;height:13px;border-radius:50%;background:#ff8b70}
-.hub{position:absolute;z-index:8;width:88px;height:88px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 25%,#fffbd8,#e2a41b 72%);border:7px solid #fff;box-shadow:0 4px 10px #0008,0 0 0 5px #a96b19;overflow:hidden}.hub img{width:100%;height:100%;display:block;object-fit:cover}
+.hub{position:absolute;z-index:8;width:88px;height:88px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 25%,#fffbd8,#e2a41b 72%);border:7px solid #fff;box-shadow:0 4px 10px #0008,0 0 0 5px #a96b19;overflow:hidden}.pho-logo{width:100%;height:100%;display:block}
 #turn{text-align:center;font-weight:900;font-size:clamp(18px,4.5vw,26px);margin:18px 0 12px}.prizes{display:grid;gap:9px}.prize.special-prize{border:3px solid #d59a18;background:linear-gradient(135deg,#fff5bd,#ffe39a)}.prize{background:#fff;border-radius:18px;padding:12px 15px;font-size:clamp(15px,3.8vw,20px);font-weight:800;box-shadow:0 2px 5px #0001}.rules{font-size:16px;line-height:1.55}.rules h3{color:#a42b24;font-size:23px}.rules p{margin:12px 0}.rules .important-rule{background:linear-gradient(135deg,#fff0a6,#ffd66b);border:3px solid #d59a18;border-radius:14px;padding:14px 16px;font-weight:900;color:#7c241c;box-shadow:0 3px 0 #b87912,0 5px 12px #0002}.rules .extra-rule{background:rgba(120,91,55,.10);border:2px dashed #c6a46a;border-radius:14px;padding:13px 16px;color:#6e6257;font-size:.94em}.exchange-rules{margin-top:16px;padding:18px 18px;background:linear-gradient(145deg,#fffaf0,#ffefd0);border:3px solid #c6a46a;border-radius:18px;box-shadow:0 5px 0 #a98a55,0 8px 16px #0002}.exchange-rules h4{margin:0 0 12px;color:#8f3028;font-size:1.18em;font-weight:900;text-shadow:0 1px 0 #fff8d8}.exchange-rules ul{margin:0;padding-left:24px}.exchange-rules li{margin:8px 0;color:#6e6257;font-weight:700}.exchange-rules li.qr-rule{list-style:none;margin:0 0 14px;padding:14px 16px;background:linear-gradient(135deg,#249642,#147235);border:3px solid #11602d;border-radius:14px;color:#fff;font-weight:900;box-shadow:0 4px 0 #0d4f26,0 6px 12px #0002}.exchange-rules li.qr-rule:before{content:"📌 ";}
 .customer-name{position:relative;display:inline-block;color:#d62828;font-weight:1000;text-transform:uppercase;letter-spacing:.2px;text-shadow:0 2px 0 #fff,0 0 8px rgba(255,193,7,.55);animation:customerGlow 1.8s ease-in-out infinite;}
 .customer-name:after{content:'✨';position:absolute;right:-22px;top:-10px;font-size:.55em;animation:customerSparkle 1.4s ease-in-out infinite;}
@@ -45,7 +45,7 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
 #qrScanner video{width:100%;max-height:55vh;object-fit:cover;border-radius:14px;background:#111}
 .scan-btn{margin-top:10px!important;background:linear-gradient(#168b52,#086c3b)!important;border-color:#f4cf62!important}
 .scan-status{font-size:14px;font-weight:700;color:#8f3028;margin:8px 0}
-@media(max-width:430px){main{padding-left:10px;padding-right:10px}.card{padding:20px 12px;border-radius:24px}.wheel-frame{padding:13px}.hub{width:72px;height:72px;font-size:34px;border-width:5px}.pointer{border-left-width:27px;border-right-width:27px;border-top-width:62px}.pointer:before{left:-22px;top:-57px;border-left-width:22px;border-right-width:22px;border-top-width:45px}.pointer:after{left:-14px;top:-48px;width:28px}}
+@media(max-width:430px){main{padding-left:10px;padding-right:10px}.card{padding:20px 12px;border-radius:24px}.wheel-frame{padding:13px}.hub{width:72px;height:72px;border-width:5px}.pho-logo{width:100%;height:100%}.pointer{border-left-width:27px;border-right-width:27px;border-top-width:62px}.pointer:before{left:-22px;top:-57px;border-left-width:22px;border-right-width:22px;border-top-width:45px}.pointer:after{left:-14px;top:-48px;width:28px}}
 /* Responsive typography: tiêu đề luôn nằm trên một dòng */
 .brand,.ribbon,.card h2{white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:-.5px}
 #game h2{margin-top:0;margin-bottom:12px}
@@ -94,7 +94,27 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
     <div class="wheel-wrap">
       <div class="wheel-frame"><canvas id="wheel" width="700" height="700"></canvas></div>
       <div class="pointer" aria-hidden="true"></div>
-      <div class="hub" aria-label="Phở Nhà Anna"><img src="/pho-anna-hub.svg" alt="Phở Nhà Anna"></div>
+      <div class="hub" aria-label="Tô phở bò PHỞ NHÀ ANNA">
+        <svg class="pho-logo" viewBox="0 0 180 180" role="img" aria-label="Tô phở bò PHỞ NHÀ ANNA">
+          <defs>
+            <radialGradient id="phoGold" cx="35%" cy="25%" r="75%"><stop offset="0" stop-color="#fffbd8"/><stop offset=".72" stop-color="#f0bf32"/><stop offset="1" stop-color="#c88416"/></radialGradient>
+            <linearGradient id="phoBroth" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9a5b24"/><stop offset="1" stop-color="#5b2c13"/></linearGradient>
+            <linearGradient id="phoBowl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffdf2"/><stop offset="1" stop-color="#ead9b4"/></linearGradient>
+          </defs>
+          <circle cx="90" cy="90" r="86" fill="url(#phoGold)"/>
+          <path d="M57 55 C62 43 65 38 61 29 M84 53 C88 41 91 36 88 25 M111 55 C115 43 119 38 116 28" fill="none" stroke="#fff7d1" stroke-width="5" stroke-linecap="round" opacity=".9"/>
+          <ellipse cx="90" cy="82" rx="57" ry="28" fill="#fff9e7" stroke="#8d5a1b" stroke-width="4"/>
+          <ellipse cx="90" cy="79" rx="51" ry="22" fill="url(#phoBroth)"/>
+          <path d="M53 78 C67 70 77 86 91 78 C105 70 115 87 128 78" fill="none" stroke="#f2e4bd" stroke-width="4" stroke-linecap="round"/>
+          <path d="M66 68 C73 61 79 65 83 71 M95 68 C101 61 108 64 112 71" fill="none" stroke="#f7f0cf" stroke-width="3" stroke-linecap="round"/>
+          <path d="M71 72 C74 64 84 62 90 70 C86 78 77 80 71 72Z M101 71 C105 63 116 64 120 72 C114 80 106 79 101 71Z" fill="#8f3329"/>
+          <path d="M48 84 Q90 105 132 84 L124 120 Q90 139 56 120Z" fill="url(#phoBowl)" stroke="#8d5a1b" stroke-width="4"/>
+          <path d="M58 112 Q90 126 122 112" fill="none" stroke="#d62a22" stroke-width="5"/>
+          <path d="M67 91 Q72 85 77 91 M103 91 Q108 85 113 91" fill="none" stroke="#2e8b57" stroke-width="5" stroke-linecap="round"/>
+          <text x="90" y="107" text-anchor="middle" font-family="Arial,sans-serif" font-size="14" font-weight="900" fill="#d62828">PHỞ</text>
+          <text x="90" y="121" text-anchor="middle" font-family="Arial,sans-serif" font-size="10.5" font-weight="900" fill="#168344">NHÀ ANNA</text>
+        </svg>
+      </div>
     </div>
     <button id="spin">BẮT ĐẦU QUAY 🎡</button>
     <p id="turn">Bạn còn 0 lượt quay hôm nay</p><div id="unlockBox" class="hidden" style="margin-top:14px;padding:14px;border:2px dashed #c6a46a;border-radius:14px;background:#fff8df"><b>👥 <span id="taskTitle">Làm nhiệm vụ – mở thêm lượt</span></b><p id="taskText" style="margin:8px 0;font-size:14px">Vui lòng hoàn thành nhiệm vụ và nhờ nhân viên quán xác nhận để mở thêm lượt.</p><div id="unlockMsg" class="msg">Vui lòng nhờ nhân viên quán xác nhận để mở thêm lượt.</div></div>
@@ -113,7 +133,7 @@ button{width:100%;height:58px;margin-top:20px;border:2px solid #ffcf61;border-ra
 <script>
 const prizes=['Ăn miễn phí 2 tô phở / 1 tuần','1 Tô Phở Miễn Phí 50K','Giảm giá 5K','1 Chai Sữa Tươi Mát Lạnh','1 Ly Trà Gừng Mát Lạnh','Chúc Bạn May Mắn Lần Sau'];
 const colors=['#d6282e','#f08a24','#f5bd19','#2388df','#249642','#8146aa'];
-const labels=[['🏆 Ăn miễn phí','2 tô phở / 1 tuần'],['🍜 1 Tô Phở','Miễn Phí 50K'],['🏷️ Giảm giá','5K'],['🥛 Sữa Tươi','Mát Lạnh'],['🍵 1 Ly Trà Gừng','Mát Lạnh'],['🍀 Chúc Bạn','May Mắn Lần Sau']];
+const labels=[['🏆 Ăn miễn phí','2 tô phở / 1 tuần'],['🍜 1 Tô Phở','Miễn Phí 50K'],['🏷️ Giảm giá','5K'],['🥛 1 Chai','Sữa Tươi','Mát Lạnh'],['🍵 1 Ly Trà Gừng','Mát Lạnh'],['🍀 Chúc Bạn','May Mắn Lần Sau']];
 const wheel=document.getElementById('wheel'),ctx=wheel.getContext('2d');let phone='',remaining=0,usedToday=0,busy=false,angle=0,inviteUnlock=false,totalDaily=4,freeDaily=2,taskDaily=2,taskEnabled=true,taskLabel='Mời bạn cùng ăn tại PHỞ NHÀ ANNA';
 
 function todayKey(){
@@ -164,7 +184,7 @@ async function restoreSession(){
   }
 }
 
-function drawWheel(){const cx=350,cy=350,r=340,s=2*Math.PI/6;ctx.clearRect(0,0,700,700);for(let i=0;i<6;i++){const a=-Math.PI/2+i*s,b=a+s;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,b);ctx.closePath();ctx.fillStyle=colors[i];ctx.fill();ctx.strokeStyle='#fff7d5';ctx.lineWidth=7;ctx.stroke();const mid=a+s/2,x=cx+Math.cos(mid)*r*.60,y=cy+Math.sin(mid)*r*.60;ctx.save();ctx.translate(x,y);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='#000b';ctx.shadowBlur=4;ctx.shadowOffsetY=2;ctx.font='900 24px Arial';ctx.fillText(labels[i][0],0,-17);ctx.font='900 21px Arial';ctx.fillText(labels[i][1],0,17);ctx.restore();}ctx.beginPath();ctx.arc(cx,cy,r+1,0,Math.PI*2);ctx.strokeStyle='#ffd96a';ctx.lineWidth=10;ctx.stroke();}
+function drawWheel(){const cx=350,cy=350,r=340,s=2*Math.PI/6;ctx.clearRect(0,0,700,700);for(let i=0;i<6;i++){const a=-Math.PI/2+i*s,b=a+s;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,b);ctx.closePath();ctx.fillStyle=colors[i];ctx.fill();ctx.strokeStyle='#fff7d5';ctx.lineWidth=7;ctx.stroke();const mid=a+s/2,x=cx+Math.cos(mid)*r*.60,y=cy+Math.sin(mid)*r*.60;ctx.save();ctx.translate(x,y);ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.shadowColor='#000b';ctx.shadowBlur=4;ctx.shadowOffsetY=2;const lines=labels[i];if(i===3){ctx.font='900 19px Arial';ctx.fillText(lines[0],0,-25);ctx.fillText(lines[1],0,0);ctx.fillText(lines[2],0,25);}else{ctx.font='900 24px Arial';ctx.fillText(lines[0],0,-17);ctx.font='900 21px Arial';ctx.fillText(lines[1],0,17);}ctx.restore();}ctx.beginPath();ctx.arc(cx,cy,r+1,0,Math.PI*2);ctx.strokeStyle='#ffd96a';ctx.lineWidth=10;ctx.stroke();}
 drawWheel();
 refreshDailyConfig();
 setInterval(refreshDailyConfig,15000);
