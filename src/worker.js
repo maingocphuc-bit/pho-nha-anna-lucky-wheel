@@ -790,8 +790,11 @@ async function api(req, env, url) {
     const salt=randomHex(16); const ph=await hashPassword(p,salt); const th=await sha256(p);
     const r=await env.DB.prepare("UPDATE admin_credentials SET password_hash=?,salt=?,token_hash=?,updated_at=datetime('now') WHERE id=1").bind(ph,salt,th).run();
     if(r.meta.changes!==1)return json({ok:false,error:'Không thể đổi mật khẩu quản trị.'},500);
-    const session=await createAdminSession(env);
-    return json({ok:true,token:session.raw,expiresAt:session.expires,message:'Đã đổi mật khẩu quản trị thành công.'},200,{'Set-Cookie':adminCookie(session.raw)});
+    // Password change invalidates every existing admin session. The current
+    // browser is intentionally logged out and must authenticate again.
+    await ensureAdminTables(env);
+    await env.DB.prepare('DELETE FROM admin_sessions').run();
+    return json({ok:true,message:'Đã đổi mật khẩu quản trị thành công. Vui lòng đăng nhập lại bằng mật khẩu mới.'},200,{'Set-Cookie':clearAdminCookie()});
   }
 
   if (url.pathname === '/api/admin/unlock' && req.method === 'POST') {
