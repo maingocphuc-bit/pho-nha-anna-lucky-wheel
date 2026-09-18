@@ -304,9 +304,15 @@ async function ensureCycleState(env) {
     id INTEGER PRIMARY KEY CHECK (id = 1),
     cycle_no INTEGER NOT NULL DEFAULT 1,
     position INTEGER NOT NULL DEFAULT 0,
+    debt_prize0 INTEGER NOT NULL DEFAULT 0,
+    debt_prize1 INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`).run();
-  await env.DB.prepare("INSERT OR IGNORE INTO cycle_state_dynamic(id,cycle_no,position) VALUES(1,1,0)").run();
+  const stateInfo = await env.DB.prepare('PRAGMA table_info(cycle_state_dynamic)').all();
+  const stateCols = new Set((stateInfo.results || []).map(x => x.name));
+  if (!stateCols.has('debt_prize0')) await env.DB.prepare('ALTER TABLE cycle_state_dynamic ADD COLUMN debt_prize0 INTEGER NOT NULL DEFAULT 0').run();
+  if (!stateCols.has('debt_prize1')) await env.DB.prepare('ALTER TABLE cycle_state_dynamic ADD COLUMN debt_prize1 INTEGER NOT NULL DEFAULT 0').run();
+  await env.DB.prepare("INSERT OR IGNORE INTO cycle_state_dynamic(id,cycle_no,position,debt_prize0,debt_prize1) VALUES(1,1,0,0,0)").run();
 }
 
 
@@ -381,7 +387,7 @@ function specialExpires(prizeIndex, date) {
 async function syncCycleState(env) {
   await ensurePlayColumns(env);
   await ensureCycleState(env);
-  const state = await env.DB.prepare('SELECT cycle_no,position FROM cycle_state_dynamic WHERE id=1').first();
+  const state = await env.DB.prepare('SELECT cycle_no,position,debt_prize0,debt_prize1 FROM cycle_state_dynamic WHERE id=1').first();
   if (!state) return null;
   const config = await getCycleConfig(env);
   const maxRow = await env.DB.prepare('SELECT MAX(cycle600_no) AS cycle_no, MAX(cycle600_position) AS position FROM plays WHERE cycle600_no=(SELECT MAX(cycle600_no) FROM plays)').first();
@@ -394,7 +400,7 @@ async function syncCycleState(env) {
     position = maxPosition;
     await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=?,position=?,updated_at=datetime('now') WHERE id=1").bind(cycleNo,position).run();
   }
-  return {cycleNo,position,cycleSize:Number(config?.cycle_size||BASE_CYCLE_SIZE),pendingCycleSize:config?.pending_cycle_size?Number(config.pending_cycle_size):null,quotas:quotaObject(config),pendingQuotas:quotaObject(config,true)};
+  return {cycleNo,position,debtPrize0:Number(state.debt_prize0||0),debtPrize1:Number(state.debt_prize1||0),cycleSize:Number(config?.cycle_size||BASE_CYCLE_SIZE),pendingCycleSize:config?.pending_cycle_size?Number(config.pending_cycle_size):null,quotas:quotaObject(config),pendingQuotas:quotaObject(config,true)};
 }
 
 async function reserveCyclePosition(env) {
@@ -406,6 +412,14 @@ async function reserveCyclePosition(env) {
       WHEN position >= (SELECT cycle_size FROM cycle_config WHERE id=1)
         THEN cycle_no + 1
       ELSE cycle_no
+    END,
+    debt_prize0 = CASE
+      WHEN position >= (SELECT cycle_size FROM cycle_config WHERE id=1) THEN 0
+      ELSE debt_prize0
+    END,
+    debt_prize1 = CASE
+      WHEN position >= (SELECT cycle_size FROM cycle_config WHERE id=1) THEN 0
+      ELSE debt_prize1
     END,
     position = CASE
       WHEN position >= (SELECT cycle_size FROM cycle_config WHERE id=1)
@@ -434,7 +448,8 @@ async function reserveCyclePosition(env) {
       updated_at=datetime('now') WHERE id=1`).run();
   }
   const fresh = await getCycleConfig(env);
-  return {cycle_no:cycleNo, position, cycle_size:Number(fresh?.cycle_size||BASE_CYCLE_SIZE), quotas:quotaObject(fresh)};
+  const debt=await env.DB.prepare('SELECT debt_prize0,debt_prize1 FROM cycle_state_dynamic WHERE id=1').first();
+  return {cycle_no:cycleNo, position, cycle_size:Number(fresh?.cycle_size||BASE_CYCLE_SIZE), quotas:quotaObject(fresh), debtPrize0:Number(debt?.debt_prize0||0), debtPrize1:Number(debt?.debt_prize1||0)};
 }
 
 async function specialHistory(env, customerId) {
@@ -541,55 +556,82 @@ async function api(req, env, url) {
     const quotas = reserved.quotas || {0:1,1:1,2:6,3:4,4:25};
     const schedules = specialSchedule(cycleNo, cycleSize, quotas);
     const prizeSchedule = buildPrizeSchedule(cycleNo,cycleSize,quotas);
-    const special1Available = !history.has0 && Number(quotas[1]||0)>counts[1];
-    const special0Available = !history.has1 && Number(quotas[0]||0)>counts[0];
+    const recentCustomer = await env.DB.prepare('SELECT prize_index FROM plays WHERE customer_id=? ORDER BY id DESC LIMIT 2').bind(c.id).all();
+    const recentCustomerResults = recentCustomer.results || [];
+    const customerHasTwoWins = recentCustomerResults.length===2 && recentCustomerResults.every(r=>isWinningPrize(r.prize_index));
 
-    let i = chooseScheduledPrize(prizeSchedule,counts,quotas,cyclePosition,cycleSize);
-    // If a scheduled special is ineligible, keep this position as a regular/
-    // consolation result and let the special be awarded at its next available
-    // scheduled position rather than creating a burst of regular prizes.
-    if(i===1 && (!special1Available || !(await eligibleFor(1)))) i=5;
-    if(i===0 && (!special0Available || !(await eligibleFor(0)))) i=5;
-    if(i===5){
-      const dueSpecial1=schedules[1].filter(p=>p<=cyclePosition).length-counts[1];
-      const dueSpecial0=schedules[0].filter(p=>p<=cyclePosition).length-counts[0];
-      if(dueSpecial1>0 && special1Available && await eligibleFor(1)) i=1;
-      else if(dueSpecial0>0 && special0Available && await eligibleFor(0)) i=0;
-    }
+    // Deferred special-prize debt: if a scheduled special cannot be given to the
+    // current customer (special already owned or the customer has two wins in a row),
+    // keep that quota alive and award it to the next eligible customer in this cycle.
+    let debt0 = Number(reserved.debtPrize0||0), debt1 = Number(reserved.debtPrize1||0);
+    const canWinNow = !customerHasTwoWins;
+    const canReceive0 = canWinNow && await eligibleFor(0) && Number(counts[0]||0)<Number(quotas[0]||0);
+    const canReceive1 = canWinNow && await eligibleFor(1) && Number(counts[1]||0)<Number(quotas[1]||0);
+    let i = 5;
 
-    // Nếu vị trí 600 gặp khách đã có giải đặc biệt còn lại, tìm lượt thường
-    // gần nhất trước đó của một khách chưa có giải đặc biệt 50K và đổi giải.
-    if (special0Available && schedules[0].includes(cyclePosition) && !await eligibleFor(0)) {
-      const prior = await env.DB.prepare(`
-        SELECT p.id,p.prize_index,p.customer_id,p.reward_code,p.created_at
-        FROM plays p
-        WHERE p.cycle600_no=? AND p.cycle600_position<? AND p.prize_index IN (2,3,4,5)
-          AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=1)
-        ORDER BY p.cycle600_position DESC LIMIT 1
-      `).bind(cycleNo,cyclePosition).first();
-      if (prior) {
-        const displacedIndex=Number(prior.prize_index);
-        const specialCode=String(prior.reward_code);
-        const specialExpiry=specialExpires(0,d);
-        await env.DB.prepare('UPDATE plays SET prize_index=0,prize_name=?,expires_at=? WHERE id=?')
-          .bind(PRIZES[0].name,specialExpiry,prior.id).run();
-        i=displacedIndex;
+    if (debt1>0 && canReceive1) { i=1; debt1--; }
+    else if (debt0>0 && canReceive0) { i=0; debt0--; }
+    else {
+      const wanted=chooseScheduledPrize(prizeSchedule,counts,quotas,cyclePosition,cycleSize);
+      if (wanted===1) {
+        if (canReceive1) i=1;
+        else if (Number(counts[1]||0)<Number(quotas[1]||0) && (!canWinNow || !(await eligibleFor(1)))) debt1++;
+      } else if (wanted===0) {
+        if (canReceive0) i=0;
+        else if (Number(counts[0]||0)<Number(quotas[0]||0) && (!canWinNow || !(await eligibleFor(0)))) debt0++;
       } else {
-        i=5;
+        // Catch up a missed special position before creating another regular prize.
+        const dueSpecial1=schedules[1].filter(p=>p<=cyclePosition).length-counts[1]-debt1;
+        const dueSpecial0=schedules[0].filter(p=>p<=cyclePosition).length-counts[0]-debt0;
+        if (dueSpecial1>0 && canReceive1) i=1;
+        else if (dueSpecial0>0 && canReceive0) i=0;
       }
     }
 
-    // Không cho một khách sở hữu cả hai giải đặc biệt.
-    if ((i===0 && history.has1) || (i===1 && history.has0)) i = 5;
+    // Never let a customer's third consecutive spin be a winning prize.
+    // This rule is per customer, not global: another customer's result is irrelevant.
+    if (customerHasTwoWins && isWinningPrize(i)) i=5;
 
-    // Bảo vệ lỗi '3 lượt liên tiếp đều trúng giải'. Hai lượt thắng liên tiếp
-    // ngay trước lượt hiện tại thì lượt này bắt buộc là 'May mắn lần sau'.
-    // Kiểm tra ở server nên không thể bị bypass bằng cách mở nhiều tab.
-    const lastTwo = await env.DB.prepare(
-      'SELECT prize_index FROM plays ORDER BY id DESC LIMIT 2'
-    ).all();
-    const lastTwoResults = lastTwo.results || [];
-    if (lastTwoResults.length === 2 && lastTwoResults.every(r => isWinningPrize(r.prize_index))) i = 5;
+    // At the end of a cycle, try to rescue any still-due special quota by moving
+    // an UNREDEEMED earlier consolation/regular result to the special prize. This
+    // preserves the cycle quota without changing a redeemed customer reward.
+    if (cyclePosition===cycleSize && debt1>0) {
+      const prior=await env.DB.prepare(`
+        SELECT p.id,p.customer_id,p.prize_index,p.reward_code
+        FROM plays p
+        WHERE p.cycle600_no=? AND p.prize_index IN (2,3,4,5) AND COALESCE(p.redeemed,0)=0
+          AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=0)
+        ORDER BY p.cycle600_position DESC LIMIT 50`).bind(cycleNo).all();
+      for(const cand of (prior.results||[])) {
+        const h=await env.DB.prepare('SELECT prize_index FROM plays WHERE customer_id=? ORDER BY id DESC LIMIT 2').bind(cand.customer_id).all();
+        const hs=h.results||[];
+        if(hs.length===2 && hs.every(r=>isWinningPrize(r.prize_index))) continue;
+        await env.DB.prepare('UPDATE plays SET prize_index=1,prize_name=?,expires_at=? WHERE id=? AND COALESCE(redeemed,0)=0')
+          .bind(PRIZES[1].name,specialExpires(1,d),cand.id).run();
+        debt1--; break;
+      }
+    }
+    if (cyclePosition===cycleSize && debt0>0) {
+      const prior=await env.DB.prepare(`
+        SELECT p.id,p.customer_id,p.prize_index,p.reward_code
+        FROM plays p
+        WHERE p.cycle600_no=? AND p.prize_index IN (2,3,4,5) AND COALESCE(p.redeemed,0)=0
+          AND NOT EXISTS (SELECT 1 FROM plays h WHERE h.customer_id=p.customer_id AND h.prize_index=1)
+        ORDER BY p.cycle600_position DESC LIMIT 50`).bind(cycleNo).all();
+      for(const cand of (prior.results||[])) {
+        const h=await env.DB.prepare('SELECT prize_index FROM plays WHERE customer_id=? ORDER BY id DESC LIMIT 2').bind(cand.customer_id).all();
+        const hs=h.results||[];
+        if(hs.length===2 && hs.every(r=>isWinningPrize(r.prize_index))) continue;
+        await env.DB.prepare('UPDATE plays SET prize_index=0,prize_name=?,expires_at=? WHERE id=? AND COALESCE(redeemed,0)=0')
+          .bind(PRIZES[0].name,specialExpires(0,d),cand.id).run();
+        debt0--; break;
+      }
+    }
+
+    // Persist deferred special quotas for the current cycle. They are reset when a
+    // cycle is reset/advanced, so the quota belongs to the cycle that generated it.
+    await env.DB.prepare("UPDATE cycle_state_dynamic SET debt_prize0=?,debt_prize1=?,updated_at=datetime('now') WHERE id=1")
+      .bind(Math.max(0,debt0),Math.max(0,debt1)).run();
 
     const rewardCode = tokenCode('ANNA'); const p = PRIZES[i]; const expiresAt = specialExpires(i,d);
     await env.DB.prepare(`INSERT INTO plays
@@ -725,7 +767,7 @@ async function api(req, env, url) {
       4: b.quota4===undefined ? currentQuotas[4] : Math.floor(Number(b.quota4))
     };
     const valid=validateQuotas(size,incoming); if(!valid.ok)return json(valid,400);
-    await ensureCycleState(env); const state=await env.DB.prepare('SELECT cycle_no,position FROM cycle_state_dynamic WHERE id=1').first();
+    await ensureCycleState(env); const state=await env.DB.prepare('SELECT cycle_no,position,debt_prize0,debt_prize1 FROM cycle_state_dynamic WHERE id=1').first();
     const pos=Number(state?.position||0);
     const params=[size,incoming[0],incoming[1],incoming[2],incoming[3],incoming[4]];
     if(pos===0){
@@ -791,13 +833,29 @@ async function api(req, env, url) {
   }
   if (url.pathname === '/api/admin/delete-all-customers' && req.method === 'POST') {
     if(!(await adminOk(req,env)))return json({ok:false,error:'Không có quyền.'},401);
+    const b=await req.json().catch(()=>({}));
+    const mode=String(b.mode||'current');
+    if(!['current','next'].includes(mode))return json({ok:false,error:'Lựa chọn khởi động lại không hợp lệ.'},400);
     await env.DB.batch([env.DB.prepare('DELETE FROM customer_unlocks'),env.DB.prepare('DELETE FROM admin_extra_unlocks'),env.DB.prepare('DELETE FROM unlock_tokens'),env.DB.prepare('DELETE FROM plays'),env.DB.prepare('DELETE FROM customers')]);
-    // Xóa dữ liệu test nhưng đưa bộ đếm về đầu chu kỳ 1.
     await ensureCycleState(env);
-    await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=1,position=0,updated_at=datetime('now') WHERE id=1").run();
-    await env.DB.prepare("UPDATE cycle_config SET cycle_size=COALESCE(pending_cycle_size,cycle_size),pending_cycle_size=NULL,updated_at=datetime('now') WHERE id=1").run();
+    if(mode==='next'){
+      const cfg0=await getCycleConfig(env);
+      const hasPending=!!cfg0?.pending_cycle_size;
+      if(hasPending){
+        await env.DB.prepare(`UPDATE cycle_config SET
+          cycle_size=COALESCE(pending_cycle_size,cycle_size), pending_cycle_size=NULL,
+          quota_prize0=COALESCE(pending_quota_prize0,quota_prize0),
+          quota_prize1=COALESCE(pending_quota_prize1,quota_prize1),
+          quota_prize2=COALESCE(pending_quota_prize2,quota_prize2),
+          quota_prize3=COALESCE(pending_quota_prize3,quota_prize3),
+          quota_prize4=COALESCE(pending_quota_prize4,quota_prize4),
+          pending_quota_prize0=NULL,pending_quota_prize1=NULL,pending_quota_prize2=NULL,pending_quota_prize3=NULL,pending_quota_prize4=NULL,
+          updated_at=datetime('now') WHERE id=1`).run();
+      }
+    }
+    await env.DB.prepare("UPDATE cycle_state_dynamic SET cycle_no=1,position=0,debt_prize0=0,debt_prize1=0,updated_at=datetime('now') WHERE id=1").run();
     const cfg=await getCycleConfig(env);
-    return json({ok:true,message:`Đã xóa toàn bộ khách hàng và dữ liệu liên quan; bộ đếm đã về 0/${Number(cfg.cycle_size||600).toLocaleString('vi-VN')}.`});
+    return json({ok:true,mode,message:`Đã xóa toàn bộ dữ liệu; bắt đầu lại từ 0/${Number(cfg.cycle_size||600).toLocaleString('vi-VN')} lượt với ${mode==='next'?'cấu hình chu kỳ được áp dụng':'cấu hình hiện tại'}.`});
   }
 
   if (url.pathname === '/api/admin/plays' && req.method === 'GET') {
